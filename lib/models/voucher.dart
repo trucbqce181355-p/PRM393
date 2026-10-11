@@ -4,6 +4,8 @@ class Voucher {
   final double discountAmount;
   final double minPurchase;
   final bool isActive;
+  final String discountType; // 'fixed' | 'percentage'
+  final double discountPercentage;
 
   Voucher({
     required this.code,
@@ -11,15 +13,23 @@ class Voucher {
     required this.discountAmount,
     required this.minPurchase,
     this.isActive = true,
+    this.discountType = 'fixed',
+    this.discountPercentage = 0.0,
   });
 
   factory Voucher.fromJson(Map<String, dynamic> json) {
+    final rawPercent = (json['discountPercentage'] ?? json['discount_percent'] ?? 0.0).toDouble();
+    final rawAmount = (json['discountAmount'] ?? json['discount_amount'] ?? 0.0).toDouble();
+    final isPercentage = json['discountType'] == 'percentage' || (rawPercent > 0 && rawPercent <= 100);
+
     return Voucher(
       code: json['code']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
-      discountAmount: (json['discountAmount'] ?? json['discount_amount'] ?? 0.0).toDouble(),
+      discountAmount: isPercentage ? 0.0 : rawAmount,
       minPurchase: (json['minPurchase'] ?? json['min_order_value'] ?? 0.0).toDouble(),
       isActive: json['isActive'] ?? true,
+      discountType: isPercentage ? 'percentage' : 'fixed',
+      discountPercentage: rawPercent,
     );
   }
 
@@ -30,6 +40,8 @@ class Voucher {
       'discountAmount': discountAmount,
       'minPurchase': minPurchase,
       'isActive': isActive,
+      'discountType': discountType,
+      'discountPercentage': discountPercentage,
     };
   }
 
@@ -39,6 +51,8 @@ class Voucher {
     double? discountAmount,
     double? minPurchase,
     bool? isActive,
+    String? discountType,
+    double? discountPercentage,
   }) {
     return Voucher(
       code: code ?? this.code,
@@ -46,6 +60,8 @@ class Voucher {
       discountAmount: discountAmount ?? this.discountAmount,
       minPurchase: minPurchase ?? this.minPurchase,
       isActive: isActive ?? this.isActive,
+      discountType: discountType ?? this.discountType,
+      discountPercentage: discountPercentage ?? this.discountPercentage,
     );
   }
 }
