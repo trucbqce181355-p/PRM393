@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../models/cart_item.dart';
-import '../../services/auth_service.dart';
-import '../../services/storage_service.dart';
 import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
-import 'user_home_screen.dart';
 import '../../models/voucher.dart';
 import '../../utils/format_helper.dart';
+
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -21,6 +18,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double _discountAmount = 0.0;
   final TextEditingController _voucherController = TextEditingController();
 
+  final List<Map<String, dynamic>> _orderItems = const [
+    {'name': 'Táo Fuji hữu cơ', 'quantity': 2, 'price': 60000.0},
+    {'name': 'Nho Mẫu Đơn nhập khẩu', 'quantity': 1, 'price': 150000.0},
+  ];
+
+  double get _totalAmount {
+    double total = 0.0;
+    for (var item in _orderItems) {
+      total += (item['price'] as double) * (item['quantity'] as int);
+    }
+    return total;
+  }
+
   @override
   void dispose() {
     _voucherController.dispose();
@@ -31,12 +41,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isProcessing = true);
 
     if (_selectedPayment == 'MOMO' || _selectedPayment == 'VNPAY') {
-      // Mô phỏng Deep-link mở app Momo/VNPay
       _showPaymentGatewaySimulation();
       return;
     }
 
-    // COD - Giả lập xử lý nhanh
     await Future.delayed(const Duration(seconds: 1));
     _completeOrder();
   }
@@ -61,12 +69,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ? 'https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png'
                   : 'https://vnpay.vn/s1/statics.vnpay.vn/2023/9/06ncktiwd6dc1694418196384.png',
               height: 60,
+              errorBuilder: (context, error, stackTrace) => const Icon(Icons.payment, size: 60, color: Colors.green),
             ),
             const SizedBox(height: 24),
             const CircularProgressIndicator(color: Colors.pink),
             const SizedBox(height: 24),
             Text(
-              'Đang chờ thanh toán qua \$_selectedPayment...',
+              'Đang chờ thanh toán qua $_selectedPayment...',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -77,7 +86,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context); // Đóng Modal mô phỏng Momo
+                Navigator.pop(context);
                 _completeOrder();
               },
               style: ElevatedButton.styleFrom(
@@ -92,22 +101,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _completeOrder() async {
-    // Generate order summary string from cart items
-    final itemNames = Cart.items.map((i) => '${i.product.name} (x${i.quantity})').join(' + ');
-    
-    await StorageService.addOrder({
-      'id': DateTime.now().millisecondsSinceEpoch.toString().substring(7),
-      'status': 'Đang xử lý',
-      'items': itemNames,
-      'date': 'Vừa xong',
-      'total': FormatHelper.formatPrice((Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0)),
-    });
-
+  void _completeOrder() {
     if (!mounted) return;
 
     setState(() {
-      Cart.items.clear();
       _isProcessing = false;
     });
 
@@ -141,13 +138,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                    (route) => false,
-                  );
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Return to previous screen
                 },
-                child: const Text('Tiếp tục mua sắm', style: TextStyle(color: Colors.white, fontSize: 16)),
+                child: const Text('Tiếp tục', style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
             )
           ],
@@ -158,6 +152,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final finalTotal = (_totalAmount - _discountAmount > 0) ? (_totalAmount - _discountAmount) : 0.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -178,18 +174,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Text('${AuthService.userName ?? "Khách"} - 0987654321', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Icon(Icons.location_on, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Khách hàng - 0987654321', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Padding(
+                    SizedBox(height: 8),
+                    Padding(
                       padding: EdgeInsets.only(left: 32),
                       child: Text('Số 1, Đại Cồ Việt, Bách Khoa, Hai Bà Trưng, Hà Nội', style: TextStyle(color: Colors.grey)),
                     ),
@@ -205,22 +201,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                 child: Column(
-                  children: Cart.items.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('${item.product.name} (x${item.quantity})'),
-                        Text(FormatHelper.formatPrice(item.totalPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  )).toList(),
+                  children: _orderItems.map((item) {
+                    final itemTotal = (item['price'] as double) * (item['quantity'] as int);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('${item['name']} (x${item['quantity']})'),
+                          Text(FormatHelper.formatPrice(itemTotal), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
               const SizedBox(height: 24),
 
               // Section Voucher
-              const Text('Khuyến mãi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Khuyến mãi & Voucher', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -242,13 +241,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () {
-                            final code = _voucherController.text.toUpperCase();
+                            final code = _voucherController.text.trim().toUpperCase();
                             
                             // Find voucher
                             Voucher? voucher;
                             try {
                               voucher = DataService.vouchers.firstWhere((v) => v.code == code && v.isActive);
-                            } catch (e) {
+                            } catch (_) {
                               voucher = null;
                             }
                             
@@ -256,7 +255,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               SnackbarHelper.showError(context, 'Mã không hợp lệ hoặc đã hết hạn');
                               return;
                             }
-                            if (Cart.totalAmount < voucher.minPurchase) {
+                            if (_totalAmount < voucher.minPurchase) {
                               SnackbarHelper.showError(context, 'Đơn hàng chưa đạt mức tối thiểu ${FormatHelper.formatPrice(voucher.minPurchase)}');
                               return;
                             }
@@ -278,7 +277,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Đã áp dụng mã $_appliedVoucherCode (-${FormatHelper.formatPrice(_discountAmount)})', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                          Text(
+                            'Đã áp dụng mã $_appliedVoucherCode (-${FormatHelper.formatPrice(_discountAmount)})',
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.close, color: Colors.red, size: 20),
                             onPressed: () {
@@ -342,7 +344,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 100), // padding for bottom bar
+              const SizedBox(height: 100),
             ],
           ),
         ),
@@ -352,7 +354,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
-            BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, -5)),
+            BoxShadow(color: Colors.grey.withValues(alpha: 0.1), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, -5)),
           ],
         ),
         child: SafeArea(
@@ -367,11 +369,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const Text('Tổng thanh toán', style: TextStyle(fontSize: 14, color: Colors.grey)),
                     if (_discountAmount > 0)
                       Text(
-                        FormatHelper.formatPrice(Cart.totalAmount),
+                        FormatHelper.formatPrice(_totalAmount),
                         style: const TextStyle(fontSize: 14, color: Colors.grey, decoration: TextDecoration.lineThrough),
                       ),
                     Text(
-                      FormatHelper.formatPrice(Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0),
+                      FormatHelper.formatPrice(finalTotal),
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green),
                     ),
                   ],
