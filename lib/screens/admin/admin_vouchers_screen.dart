@@ -50,11 +50,10 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     minPurchase: minPurchase,
                   );
                   DataService.addVoucher(newVoucher).then((_) {
-                    if (mounted) {
-                      setState(() {});
-                      Navigator.pop(context);
-                      SnackbarHelper.showSuccess(context, 'Thêm voucher thành công');
-                    }
+                    if (!mounted) return;
+                    setState(() {});
+                    Navigator.of(context).pop();
+                    SnackbarHelper.showSuccess(context, 'Thêm voucher thành công');
                   });
                 } else {
                   SnackbarHelper.showError(context, 'Vui lòng nhập mã và số tiền giảm');
