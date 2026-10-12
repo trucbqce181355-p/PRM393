@@ -8,6 +8,8 @@ class Product {
   final double rating;
   int stock;
   final String category;
+  final String origin;
+  final String freshness;
   bool isActive;
   bool isDeleted;
 
@@ -21,6 +23,8 @@ class Product {
     this.rating = 5.0,
     this.stock = 100, // default stock
     this.category = 'Khác',
+    this.origin = 'Việt Nam',
+    this.freshness = '100% Tươi mới trong ngày',
     this.isActive = true,
     this.isDeleted = false,
   });
@@ -31,11 +35,13 @@ class Product {
       name: json['name'],
       description: json['description'],
       price: json['price']?.toDouble() ?? 0.0,
-      unit: json['unit'],
-      imageUrl: json['imageUrl'],
+      unit: json['unit'] ?? 'kg',
+      imageUrl: json['imageUrl'] ?? '',
       rating: json['rating']?.toDouble() ?? 5.0,
       stock: json['stock'] ?? 100,
       category: json['category'] ?? 'Khác',
+      origin: json['origin'] ?? 'Việt Nam',
+      freshness: json['freshness'] ?? '100% Tươi mới trong ngày',
       isActive: json['isActive'] ?? true,
       isDeleted: json['isDeleted'] ?? false,
     );
@@ -52,6 +58,8 @@ class Product {
       'rating': rating,
       'stock': stock,
       'category': category,
+      'origin': origin,
+      'freshness': freshness,
       'isActive': isActive,
       'isDeleted': isDeleted,
     };
