@@ -41,6 +41,7 @@ dependencies:
   intl: ^0.20.3
   mongo_dart: ^0.10.9
   image_picker: ^1.2.4
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
