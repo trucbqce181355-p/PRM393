@@ -65,6 +65,12 @@ async function main() {
     service.authenticate(token)
       .then(user => res.json({ success: true, data: publicUser(user) })).catch(next);
   });
+  app.patch('/api/auth/profile', (req, res, next) => {
+    const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+    service.authenticate(token)
+      .then(user => service.saveProfile(user, req.body ?? {}))
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
   app.get('/api/health', async (req, res) => {
     try {
       await db.command({ ping: 1 });

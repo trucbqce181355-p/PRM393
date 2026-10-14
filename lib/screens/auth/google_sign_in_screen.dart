@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
-import '../../utils/snackbar_helper.dart';
-import '../admin/admin_dashboard_screen.dart';
-import '../user/user_home_screen.dart';
+import 'auth_wrapper.dart';
 import 'link_google_form.dart';
 
 class GoogleSignInScreen extends StatefulWidget {
@@ -31,19 +29,13 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
       body: ValueListenableBuilder<GoogleSignInStatus>(
         valueListenable: AuthService.googleStatus,
         builder: (context, status, child) {
-          if (status == GoogleSignInStatus.success &&
-              AuthService.hasCompletedProfile &&
-              !_navigating) {
+          if (status == GoogleSignInStatus.success && !_navigating) {
             _navigating = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => AuthService.role == 'admin'
-                      ? const AdminDashboardScreen()
-                      : const UserHomeScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const AuthWrapper()),
                 (route) => false,
               );
             });
@@ -94,24 +86,6 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
                       TextButton(
                         onPressed: _returnToLogin,
                         child: const Text('Quay lại đăng nhập'),
-                      ),
-                    ] else if (!AuthService.hasCompletedProfile) ...[
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () async {
-                          try {
-                            await AuthService.logout();
-                            if (context.mounted) Navigator.pop(context);
-                          } catch (_) {
-                            if (context.mounted) {
-                              SnackbarHelper.showError(
-                                context,
-                                'Không thể đăng xuất. Vui lòng thử lại.',
-                              );
-                            }
-                          }
-                        },
-                        child: const Text('Đăng xuất'),
                       ),
                     ],
                   ],

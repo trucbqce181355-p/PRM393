@@ -31,8 +31,8 @@ không tạo bản ghi users trùng. Không tạo/nâng quyền
 admin theo email Google; role lấy từ account đã liên kết trên server. Tài khoản
 bị khóa không được cấp phiên.
 
-Account Google có hồ sơ đầy đủ vào trang chủ. Account mới hiển thị xác nhận
-đăng nhập thành công; hoàn tất hồ sơ được bổ sung ở UC 7. Supabase JWT và token
+Account Google có hồ sơ đầy đủ vào trang chủ. Account mới được chuyển đến
+màn hình hoàn tất hồ sơ theo google_profile_completion.md (UC 7). Supabase JWT và token
 Fruitopia chỉ ở bộ nhớ; Supabase dùng EmptyLocalStorage. UC 8 lưu/khôi phục phiên
 Fruitopia an toàn. Không ghi JWT ra log/file hoặc lưu trong SharedPreferences.
 Luồng SĐT và hồ sơ giả lập cũ đã được gỡ khỏi UI/auth service theo nghiệp vụ

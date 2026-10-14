@@ -31,5 +31,6 @@ mặc định dùng loopback; khi triển khai máy chủ từ xa cần HTTPS ch
 
 App gom yêu cầu Google đang chạy; callback trùng không mở lại bước xác nhận.
 Hủy hoặc đổi luồng đăng nhập làm kết quả cũ không ghi đè phiên mới. Sau liên
-kết, app nhận phiên Fruitopia của tài khoản gốc. Hồ sơ còn thiếu xử lý ở UC 7;
+kết, app nhận phiên Fruitopia của tài khoản gốc. Hồ sơ còn thiếu xử lý ở UC 7
+theo google_profile_completion.md;
 lưu/khôi phục phiên an toàn ở UC 8 và thu hồi phiên ở UC 9.

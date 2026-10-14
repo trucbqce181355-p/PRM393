@@ -15,6 +15,8 @@ class AuthService {
   static bool _isLoggedIn = false;
   static Customer? _backendCustomer;
   static String _backendRole = 'customer';
+  static bool _backendHasPassword = false;
+  static bool get hasPassword => isBackendSession && _backendHasPassword;
   static StreamSubscription<AuthState>? _googleSubscription;
   static Future<void>? _googleExchange;
   static bool _googleRequested = false;
@@ -49,6 +51,7 @@ class AuthService {
   static Future<void> initSession() async {
     await StorageService.clearAuthSession();
     _backendCustomer = null;
+    _backendHasPassword = false;
     _token = null;
     _userName = null;
     _userEmail = null;
@@ -184,6 +187,7 @@ class AuthService {
   static Future<void> logout() async {
     cancelGoogleSignIn();
     _backendCustomer = null;
+    _backendHasPassword = false;
     _isLoggedIn = false;
     _token = null;
     _userName = null;
@@ -237,6 +241,7 @@ class AuthService {
     _userPhone = customer.phone;
     _isLoggedIn = true;
     _backendRole = profile['role'] == 'admin' ? 'admin' : 'customer';
+    _backendHasPassword = profile['hasPassword'] == true;
     return true;
   }
 
@@ -258,13 +263,40 @@ class AuthService {
     if (email.trim().toLowerCase() != currentUser?.email.trim().toLowerCase()) {
       throw StateError('Không thay đổi email trong bước cập nhật hồ sơ.');
     }
+    await completeAuthenticatedProfile(
+      name: name,
+      phone: currentUser?.phone ?? '',
+    );
+  }
+
+  static Future<void> completeAuthenticatedProfile({
+    required String name,
+    required String phone,
+    String? password,
+  }) async {
+    if (!isBackendSession) throw StateError('Không tìm thấy phiên đăng nhập.');
+    final sessionToken = _token;
+    final customerId = _backendCustomer!.id;
+    final email = _backendCustomer!.email;
+    final body = <String, dynamic>{'name': name.trim(), 'phone': phone.trim()};
+    if (password != null) body['password'] = password;
     final data = await AuthApiService.request(
       'PATCH',
       '/profile',
-      token: _token,
-      body: {'name': name.trim(), 'phone': currentUser?.phone ?? ''},
+      token: sessionToken,
+      body: body,
     );
-    _backendCustomer = Customer.fromJson(data);
+    if (!isBackendSession ||
+        _token != sessionToken ||
+        currentUser?.id != customerId) {
+      throw StateError('Phiên đăng nhập đã thay đổi. Vui lòng đăng nhập lại.');
+    }
+    final customer = Customer.fromJson(data);
+    if (customer.id != customerId || customer.email != email) {
+      throw StateError('Server trả về hồ sơ không hợp lệ.');
+    }
+    _backendCustomer = customer;
+    _backendHasPassword = data['hasPassword'] == true;
     _userName = _backendCustomer!.name;
     _userEmail = _backendCustomer!.email;
     _userPhone = _backendCustomer!.phone;

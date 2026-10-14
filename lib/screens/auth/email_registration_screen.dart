@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/account_password_validator.dart';
+
 import '../../services/email_otp_service.dart';
 import '../../utils/snackbar_helper.dart';
 import 'login_screen.dart';
@@ -35,27 +37,6 @@ class _EmailRegistrationScreenState extends State<EmailRegistrationScreen> {
     _password.dispose();
     _confirm.dispose();
     super.dispose();
-  }
-
-  String? _passwordError(String? value) {
-    final password = value ?? '';
-    if (password != password.trim()) {
-      return 'Mật khẩu không có khoảng trắng đầu/cuối.';
-    }
-    if (password.length < 12 || password.length > 256) {
-      return 'Mật khẩu cần từ 12 đến 256 ký tự.';
-    }
-    if (RegExp(r'[^\x20-\x7e]').hasMatch(password)) {
-      return 'Mật khẩu không chứa ký tự có dấu.';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password) ||
-        !RegExp(r'[a-z]').hasMatch(password) ||
-        !RegExp(r'\d').hasMatch(password) ||
-        !RegExp(r'''[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]''')
-            .hasMatch(password)) {
-      return 'Cần chữ hoa, chữ thường, số và ký tự đặc biệt.';
-    }
-    return null;
   }
 
   Future<void> _register() async {
@@ -170,7 +151,7 @@ class _EmailRegistrationScreenState extends State<EmailRegistrationScreen> {
                         controller: _password,
                         enabled: !_saving,
                         obscureText: _obscure,
-                        validator: _passwordError,
+                        validator: validateAccountPassword,
                         decoration: InputDecoration(
                           labelText: 'Mật khẩu',
                           suffixIcon: IconButton(

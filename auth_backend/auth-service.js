@@ -141,5 +141,20 @@ class AuthService {
     this.requireActive(user);
     return { ...user, sessionProvider: session.provider };
   }
+  async saveProfile(user, { name, phone, password }) {
+    validateProfile(name, phone);
+    const profile = publicUser(user);
+    if (user.sessionProvider === 'google' && !profile.profileCompleted && !profile.hasPassword && !password) {
+      throw new AuthError(400, 'Vui lòng thiết lập mật khẩu khi hoàn tất hồ sơ Google lần đầu.');
+    }
+    const fields = { name: name.trim(), phone: phone.trim() };
+    if (password) {
+      if (profile.hasPassword) throw new AuthError(409, 'Tài khoản đã có mật khẩu. Không thay đổi mật khẩu ở bước hồ sơ.');
+      validatePassword(password);
+      fields.password_hash = await hashPassword(password);
+    }
+    const updated = await this.store.updateProfile(user.id, fields, Boolean(password));
+    return publicUser({ ...updated, sessionProvider: user.sessionProvider });
+  }
 }
 module.exports = { AuthService };

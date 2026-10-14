@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
 import '../admin/admin_dashboard_screen.dart';
-import '../user/user_home_screen.dart';
+import 'auth_wrapper.dart';
 import 'google_sign_in_screen.dart';
 import 'register_screen.dart';
 
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackbarHelper.showSuccess(context, 'Đăng nhập thành công!');
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const UserHomeScreen()),
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
           (route) => false,
         );
       }

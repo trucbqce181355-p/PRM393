@@ -57,6 +57,16 @@ class MongoStore {
     try { await this.users().insertOne(user); return user; }
     catch (error) { if (error.code === 11000) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.'); throw error; }
   }
+  async updateProfile(id, fields, setPassword) {
+    const filter = { id, identityActive: true, isActive: { $ne: false } };
+    if (setPassword) Object.assign(filter, {
+      password_hash: { $in: [null, ''] }, passwordHash: { $in: [null, ''] }, password: { $in: [null, ''] },
+    });
+    const user = await this.users().findOneAndUpdate(filter,
+      { $set: { ...fields, updated_at: new Date().toISOString() } }, { returnDocument: 'after' });
+    if (!user) throw new AuthError(409, 'Tài khoản đã bị khóa hoặc mật khẩu đã được thiết lập. Vui lòng tải lại hồ sơ.');
+    return user;
+  }
   async linkGoogle(id, uid) {
     try {
       const user = await this.users().findOneAndUpdate({ id, identityActive: true,
