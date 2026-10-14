@@ -1,5 +1,5 @@
-const { randomInt } = require('node:crypto');
-const { AuthError, digest, secret, equal, normalizeEmail } = require('./security');
+const { randomInt, randomUUID } = require('node:crypto');
+const { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, publicUser } = require('./security');
 
 class AuthService {
   constructor({ store, sendEmail, now = () => new Date(), config = {} }) {
@@ -40,6 +40,26 @@ class AuthService {
       throw new AuthError(400, 'OTP đã được sử dụng.');
     }
     return { registrationToken: proof, email: challenge.email };
+  }
+  async register({ registrationToken, name, phone, password }) {
+    validateProfile(name, phone); validatePassword(password);
+    if (typeof registrationToken !== 'string') throw new AuthError(401, 'Vui lòng xác minh OTP trước.');
+    const proofHash = digest(registrationToken);
+    const challenge = await this.store.claimProof(proofHash, this.now());
+    if (!challenge) throw new AuthError(401, 'Xác minh đăng ký đã hết hạn hoặc đã được sử dụng.');
+    try {
+      const user = await this.store.createUser({ id: `c_${randomUUID()}`,
+        email: challenge.email, emailNormalized: challenge.email, emailVerified: true,
+        name: name.trim(), phone: phone.trim(), password_hash: await hashPassword(password),
+        role: 'customer', totalSpent: 0, totalOrders: 0, memberTier: 'Đồng', isActive: true,
+        identityActive: true, created_at: this.now().toISOString() });
+      await this.store.consumeProof(proofHash);
+      return { customer: publicUser(user) };
+    } catch (error) {
+      // Keep the proof retryable for validation/database failures; unique email prevents two users.
+      await this.store.releaseProof(proofHash);
+      throw error;
+    }
   }
 }
 module.exports = { AuthService };

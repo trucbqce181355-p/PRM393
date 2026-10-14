@@ -46,6 +46,10 @@ async function main() {
     service.verifyOtp(req.body.challengeId, req.body.otp)
       .then(data => res.json({ success: true, data })).catch(next);
   });
+  app.post('/api/auth/register', (req, res, next) => {
+    service.register(req.body)
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
   app.get('/api/health', async (req, res) => {
     try {
       await db.command({ ping: 1 });
@@ -60,7 +64,7 @@ async function main() {
     const status = error.status ?? 503;
     if (status >= 500) console.error('[Auth backend]', req.method, req.path, error.name, error.code ?? 'service_error');
     res.status(status).json({ success: false, message: error.status ? error.message
-      : 'Không thể gửi hoặc xác minh OTP. Vui lòng thử lại sau.' });
+      : 'Không thể lưu hoặc xác minh dữ liệu. Vui lòng thử lại sau.' });
   });
 
   const server = app.listen(Number(process.env.PORT || 5001), process.env.HOST || '127.0.0.1', () => {

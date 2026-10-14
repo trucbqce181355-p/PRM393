@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../utils/snackbar_helper.dart';
 import '../../services/email_otp_service.dart';
+import 'email_registration_screen.dart';
 
 class EmailOtpScreen extends StatefulWidget {
   final String email;
@@ -26,7 +27,6 @@ class _EmailOtpScreenState extends State<EmailOtpScreen>
   int _resendCountdown = 60;
   bool _isLoading = false;
   bool _hasError = false;
-  bool _verified = false;
 
   @override
   void initState() {
@@ -126,7 +126,12 @@ class _EmailOtpScreenState extends State<EmailOtpScreen>
       _focusNode.unfocus();
       _countdownTimer?.cancel();
       _cursorAnimController.stop();
-      setState(() => _verified = true);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const EmailRegistrationScreen(),
+        ),
+      );
     } else {
       setState(() {
         _hasError = true;
@@ -345,30 +350,6 @@ class _EmailOtpScreenState extends State<EmailOtpScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_verified) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Xác thực email')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.verified_outlined,
-                  size: 64,
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 16),
-                const Text('Xác thực OTP thành công!'),
-                const SizedBox(height: 8),
-                Text(EmailOtpService.verifiedEmail ?? widget.email),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(

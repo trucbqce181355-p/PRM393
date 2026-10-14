@@ -17,7 +17,7 @@ Gửi lại thành công xóa proof trên client và vô hiệu challenge trư�
 
 Màn hình OTP có 6 ô số, xử lý loading/lỗi, chặn submit đồng thời và dispose
 controller/timer. Sau khi xác minh đúng, hiển thị email đã xác thực. Điều hướng
-đến hồ sơ và tạo tài khoản bằng proof thuộc commit UC 3 tiếp theo; không gọi
+đến hồ sơ và tạo tài khoản bằng proof đã bổ sung trong [UC 3](email_registration.md); không gọi
 màn hình tạo tài khoản legacy để tránh bỏ qua bằng chứng xác minh trên server.
 
 Cấu hình OTP_TTL_SECONDS và OTP_MAX_ATTEMPTS trong auth_backend/.env;

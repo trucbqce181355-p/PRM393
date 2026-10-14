@@ -1,6 +1,38 @@
-const { AuthError } = require('./security');
+const { AuthError, normalizeEmail } = require('./security');
+
+async function inspectUsers(db) {
+  const users = await db.collection('users').find({ mergedInto: { $exists: false } }).toArray();
+  const byEmail = new Map(), byId = new Map(), invalid = [];
+  for (const user of users) {
+    let email;
+    try { email = normalizeEmail(user.email); } catch { invalid.push(String(user._id)); continue; }
+    if (!user.id || typeof user.id !== 'string') { invalid.push(String(user._id)); continue; }
+    byEmail.set(email, [...(byEmail.get(email) ?? []), user]);
+    byId.set(user.id, [...(byId.get(user.id) ?? []), user]);
+  }
+  const conflicts = [...byEmail.entries()].filter(([, values]) => values.length > 1)
+    .map(([email, values]) => ({ email, records: values.map(u => ({ mongoId: String(u._id), id: u.id })) }));
+  const duplicateIds = [...byId.entries()].filter(([, values]) => values.length > 1).map(([id]) => id);
+  return { users, conflicts, duplicateIds, invalid };
+}
 
 async function initializeStore(db) {
+  const report = await inspectUsers(db);
+  if (report.conflicts.length || report.duplicateIds.length || report.invalid.length) {
+    throw new Error('Dữ liệu users có email/ID trùng hoặc không hợp lệ. Chạy npm run check-users trước khi khởi động; không tự gộp dữ liệu.');
+  }
+  // Never change the existing business ID or order references.
+  for (const user of report.users) {
+    await db.collection('users').updateOne({ _id: user._id }, {
+      $set: { emailNormalized: normalizeEmail(user.email), identityActive: true },
+    });
+  }
+  await db.collection('users').createIndex({ emailNormalized: 1 }, {
+    unique: true, partialFilterExpression: { identityActive: true }, name: 'auth_email_unique',
+  });
+  await db.collection('users').createIndex({ id: 1 }, {
+    unique: true, partialFilterExpression: { identityActive: true }, name: 'auth_id_unique',
+  });
   for (const collection of ['auth_challenges', 'auth_limits']) {
     await db.collection(collection).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   }
@@ -8,11 +40,11 @@ async function initializeStore(db) {
 
 class MongoStore {
   constructor(db) { this.db = db; }
-  findEmail(email) {
-    // Legacy users may not have emailNormalized until the account migration step.
-    const escaped = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return this.db.collection('users').findOne({ mergedInto: { $exists: false },
-      $or: [{ emailNormalized: email }, { email: { $regex: `^\\s*${escaped}\\s*$`, $options: 'i' } }] });
+  users() { return this.db.collection('users'); }
+  findEmail(email) { return this.users().findOne({ emailNormalized: email, identityActive: true }); }
+  async createUser(user) {
+    try { await this.users().insertOne(user); return user; }
+    catch (error) { if (error.code === 11000) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.'); throw error; }
   }
   async limit(key, seconds, maximum, now) {
     const bucket = `${key}:${Math.floor(now.getTime() / (seconds * 1000))}`;
@@ -52,5 +84,17 @@ class MongoStore {
     { $set: { state: 'verified', proofHash, expiresAt: new Date(now.getTime() + 600000) },
       $unset: { otpHash: '' } }, { returnDocument: 'after' });
   }
+  async claimProof(hash, now) {
+    return this.db.collection('auth_challenges').findOneAndUpdate({ proofHash: hash,
+      state: 'verified', expiresAt: { $gt: now } }, { $set: { state: 'registering' } },
+    { returnDocument: 'after' });
+  }
+  async releaseProof(hash) {
+    await this.db.collection('auth_challenges').updateOne({ proofHash: hash, state: 'registering' },
+      { $set: { state: 'verified' } });
+  }
+  async consumeProof(hash) {
+    await this.db.collection('auth_challenges').updateOne({ proofHash: hash }, { $set: { state: 'consumed' } });
+  }
 }
-module.exports = { MongoStore, initializeStore };
+module.exports = { MongoStore, initializeStore, inspectUsers };

@@ -32,4 +32,27 @@ class EmailOtpService {
     _verification = verification;
     return registrationToken != null && verifiedEmail != null;
   }
+
+  static Future<void> register({
+    required String name,
+    required String phone,
+    required String password,
+  }) async {
+    final proof = registrationToken;
+    if (proof == null) {
+      throw StateError('Vui lòng xác minh OTP trước khi đăng ký.');
+    }
+    await AuthApiService.request(
+      'POST',
+      '/register',
+      body: {
+        'registrationToken': proof,
+        'name': name.trim(),
+        'phone': phone.trim(),
+        'password': password,
+      },
+    );
+    _challenge = null;
+    _verification = null;
+  }
 }
