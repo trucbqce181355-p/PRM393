@@ -129,6 +129,8 @@ class AuthService {
   // ========================================================
   // --- BƯỚC 3: XÁC MINH OTP ---
   // ========================================================
+  static Future<bool> verifyOTP(String otp) => verifyOtp(otp);
+
   static Future<bool> verifyOtp(String enteredOtp) async {
     await Future.delayed(const Duration(milliseconds: 600));
     // Cho phép mã ngẫu nhiên vừa tạo hoặc mã fallback tiện lợi '123456'

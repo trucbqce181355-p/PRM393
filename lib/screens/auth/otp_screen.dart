@@ -6,9 +6,9 @@ import 'profile_setup_screen.dart';
 
 /// Bước 3: Xác minh mã OTP
 class OtpScreen extends StatefulWidget {
-  final String phone;
+  final String? phone;
 
-  const OtpScreen({super.key, required this.phone});
+  const OtpScreen({super.key, this.phone});
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -64,8 +64,9 @@ class _OtpScreenState extends State<OtpScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => ProfileSetupScreen(
-            phone: widget.phone,
-            authMethod: 'phone',
+            phone: widget.phone ?? AuthService.pendingPhone,
+            prefilledEmail: AuthService.pendingEmail,
+            authMethod: (widget.phone != null && widget.phone!.isNotEmpty) ? 'phone' : 'email',
           ),
         ),
       );
@@ -81,12 +82,21 @@ class _OtpScreenState extends State<OtpScreen> {
     if (_secondsRemaining > 0) return;
 
     try {
-      final newOtp = await AuthService.sendPhoneOtp(widget.phone);
+      String? newOtp;
+      if (widget.phone != null && widget.phone!.isNotEmpty) {
+        newOtp = await AuthService.sendPhoneOtp(widget.phone!);
+      } else if (AuthService.pendingEmail != null && AuthService.pendingEmail!.isNotEmpty) {
+        await AuthService.loginWithEmail(AuthService.pendingEmail!);
+        newOtp = 'Đã gửi qua Email';
+      } else {
+        newOtp = '123456';
+      }
+
       if (!mounted) return;
       _startCountdown();
       SnackbarHelper.showSuccess(
         context,
-        'Đã gửi lại mã OTP! Mã thử nghiệm: $newOtp (hoặc 123456)',
+        'Đã gửi lại mã OTP! ($newOtp)',
       );
     } catch (e) {
       if (!mounted) return;
@@ -96,6 +106,10 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final targetDisplay = (widget.phone != null && widget.phone!.isNotEmpty)
+        ? widget.phone!
+        : (AuthService.pendingEmail ?? AuthService.pendingPhone ?? 'tài khoản của bạn');
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -143,9 +157,9 @@ class _OtpScreenState extends State<OtpScreen> {
                 text: TextSpan(
                   style: const TextStyle(fontSize: 14, color: Colors.black54),
                   children: [
-                    const TextSpan(text: 'Mã xác thực 6 số đã được gửi đến số điện thoại\n'),
+                    const TextSpan(text: 'Mã xác thực 6 số đã được gửi đến\n'),
                     TextSpan(
-                      text: widget.phone,
+                      text: targetDisplay,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
