@@ -5,7 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const nodemailer = require('nodemailer');
-const { AuthError } = require('./security');
+const { AuthError, publicUser } = require('./security');
 const { MongoStore, initializeStore } = require('./store');
 const { AuthService } = require('./auth-service');
 
@@ -31,7 +31,8 @@ async function main() {
         to: email, subject: 'Mã xác thực OTP Fruitopia',
         text: `Mã OTP của bạn: ${otp}. Mã có hiệu lực ${Math.ceil(ttl / 60)} phút. Không chia sẻ mã này.` });
     }, config: { otpTtl: positiveInt('OTP_TTL_SECONDS', 300),
-      attempts: positiveInt('OTP_MAX_ATTEMPTS', 5), resend: positiveInt('OTP_RESEND_SECONDS', 60) },
+      attempts: positiveInt('OTP_MAX_ATTEMPTS', 5), resend: positiveInt('OTP_RESEND_SECONDS', 60),
+      sessionTtl: positiveInt('SESSION_TTL_SECONDS', 604800) },
   });
 
   const app = express();
@@ -49,6 +50,15 @@ async function main() {
   app.post('/api/auth/register', (req, res, next) => {
     service.register(req.body)
       .then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/login', (req, res, next) => {
+    service.login(req.body.email, req.body.password, req.ip)
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.get('/api/auth/session', (req, res, next) => {
+    const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+    service.authenticate(token)
+      .then(user => res.json({ success: true, data: publicUser(user) })).catch(next);
   });
   app.get('/api/health', async (req, res) => {
     try {

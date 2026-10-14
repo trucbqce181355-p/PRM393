@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../services/storage_service.dart';
+
+import '../../services/auth_service.dart';
 import '../user/user_home_screen.dart';
 import 'login_screen.dart';
 
@@ -11,7 +12,7 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (StorageService.isLoggedIn()) {
+    if (AuthService.isLoggedIn) {
       return const UserHomeScreen();
     }
     return const LoginScreen();

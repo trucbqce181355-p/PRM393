@@ -1,13 +1,14 @@
 import 'dart:math';
-import 'package:mailer/mailer.dart';
-import 'package:mailer/smtp_server.dart';
 import '../models/customer.dart';
 import 'data_service.dart';
 import 'mongodb_service.dart';
 import 'storage_service.dart';
+import 'auth_api_service.dart';
+import 'email_otp_service.dart';
 
 class AuthService {
   static bool _isLoggedIn = false;
+  static Customer? _backendCustomer;
   static String? _token;
   static String? _userName;
   static String? _userEmail;
@@ -17,6 +18,8 @@ class AuthService {
   static String? _pendingEmail;
 
   static bool get isLoggedIn => _isLoggedIn;
+  static bool get isBackendSession => _backendCustomer != null &&
+      RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(_token ?? '');
   static String? get token => _token;
   static String? get userName => _userName;
   static String? get userEmail => _userEmail;
@@ -25,6 +28,7 @@ class AuthService {
   static String? get pendingEmail => _pendingEmail;
 
   static Customer? get currentUser {
+    if (_isLoggedIn && isBackendSession) return _backendCustomer;
     if (!_isLoggedIn) return null;
     try {
       if (_userEmail != null && _userEmail!.isNotEmpty) {
@@ -41,6 +45,7 @@ class AuthService {
   // --- BƯỚC 1: KHỞI TẠO & PHỤC HỒI PHIÊN TỪ LOCAL STORAGE ---
   // ========================================================
   static Future<void> initSession() async {
+    _backendCustomer = null;
     final localToken = StorageService.getAuthToken();
     final localSession = StorageService.getUserSession();
 
@@ -200,6 +205,7 @@ class AuthService {
   // --- ĐĂNG XUẤT (XÓA TOKEN & SESSION) ---
   // ========================================================
   static Future<void> logout() async {
+    _backendCustomer = null;
     _isLoggedIn = false;
     _token = null;
     _userName = null;
@@ -214,74 +220,40 @@ class AuthService {
   // ========================================================
   // --- CÁC HÀM TƯƠNG THÍCH CODE CŨ (ADMIN & EMAIL) ---
   // ========================================================
+  /// Email/password authentication is authoritative on the backend.
   static Future<String> login(String email, String password) async {
-    await Future.delayed(const Duration(milliseconds: 700));
-
-    if (email == 'admin@gmail.com' && password == '123456') {
-      _userName = 'Admin';
-      _token = 'jwt_admin_token';
-      _isLoggedIn = true;
-      await StorageService.saveAuthToken(_token!);
-      await StorageService.saveUserSession({
-        'name': 'Admin',
-        'email': 'admin@gmail.com',
-        'role': 'admin',
-      });
-      return 'admin';
+    final data = await AuthApiService.request('POST', '/login',
+      body: {'email': email.trim(), 'password': password});
+    final token = data['token'] as String;
+    final profile = Map<String, dynamic>.from(data['customer'] as Map);
+    final customer = Customer.fromJson(profile);
+    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
+      throw StateError('Server trả về phiên đăng nhập không hợp lệ.');
     }
-
-    try {
-      final customer = DataService.customers.firstWhere(
-        (c) => c.email == email && c.password == password,
-      );
-
-      if (!customer.isActive) {
-        throw Exception('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ CSKH.');
-      }
-
-      _userName = customer.name;
-      _userEmail = customer.email;
-      _userPhone = customer.phone;
-      _token = 'jwt_token_${DateTime.now().millisecondsSinceEpoch}';
-      _isLoggedIn = true;
-
-      await StorageService.saveAuthToken(_token!);
-      await StorageService.saveUserSession({
-        'id': customer.id,
-        'name': customer.name,
-        'email': customer.email,
-        'phone': customer.phone,
-      });
-
-      return 'customer';
-    } catch (e) {
-      if (e is Exception && e.toString().contains('bị khóa')) {
-        rethrow;
-      }
-      throw Exception('Email hoặc mật khẩu không chính xác!');
-    }
+    // Remove an older legacy identity. Backend sessions stay in memory until UC 8.
+    await StorageService.clearAuthSession();
+    _backendCustomer = customer;
+    _token = token;
+    _userName = customer.name;
+    _userEmail = customer.email;
+    _userPhone = customer.phone;
+    _pendingPhone = null;
+    _pendingEmail = null;
+    _expectedOtp = null;
+    _isLoggedIn = true;
+    return profile['role'] == 'admin' ? 'admin' : 'customer';
   }
 
+  // Compatibility for existing legacy callers; SMTP credentials stay on the server.
   static Future<String> loginWithEmail(String targetEmail) async {
-    _pendingEmail = targetEmail;
-    final random = Random();
-    _expectedOtp = (100000 + random.nextInt(900000)).toString();
-
-    String username = 'huet61189@gmail.com';
-    String password = 'cvyasfhgklsxvfpf';
-    final smtpServer = gmail(username, password);
-
-    final message = Message()
-      ..from = Address(username, 'Fruitopia OTP')
-      ..recipients.add(targetEmail)
-      ..subject = 'Mã xác thực OTP của bạn'
-      ..text = 'Mã OTP của bạn là: $_expectedOtp\nXin đừng chia sẻ mã này cho bất kỳ ai.';
-
     try {
-      await send(message, smtpServer);
+      await EmailOtpService.sendOtp(targetEmail);
+      _pendingEmail = targetEmail.trim().toLowerCase();
       return '';
-    } catch (e) {
-      return e.toString();
+    } on StateError catch (error) {
+      return error.message;
+    } catch (_) {
+      return 'Không thể gửi OTP. Vui lòng thử lại.';
     }
   }
 

@@ -39,6 +39,21 @@ async function hashPassword(password) {
   const key = await scrypt(password, salt, 64);
   return `scrypt$${salt}$${key.toString('hex')}`;
 }
+async function verifyPassword(password, user) {
+  if (typeof password !== 'string' || password.length > 256) return false;
+  const stored = user.password_hash ?? user.passwordHash ?? user.password;
+  if (typeof stored !== 'string' || !stored) return false;
+  if (stored.startsWith('scrypt$')) {
+    const [, salt, hash] = stored.split('$');
+    if (!/^[a-f0-9]{32}$/.test(salt ?? '') || !/^[a-f0-9]{128}$/.test(hash ?? '')) return false;
+    return equal((await scrypt(password, salt, 64)).toString('hex'), hash);
+  }
+  // Existing SHA-256/plaintext records are upgraded after a successful login.
+  if (/^[a-f0-9]{64}$/i.test(stored) && (user.password_hash != null || user.passwordHash != null)) {
+    return equal(stored.toLowerCase(), digest(password.trim()));
+  }
+  return equal(stored, password.trim());
+}
 function publicUser(user) {
   return {
     id: user.id, name: user.name ?? '', email: user.email ?? '', phone: user.phone ?? '',
@@ -50,4 +65,4 @@ function publicUser(user) {
     sessionProvider: user.sessionProvider === 'google' ? 'google' : 'password',
   };
 }
-module.exports = { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, publicUser };
+module.exports = { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, verifyPassword, publicUser };

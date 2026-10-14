@@ -20,7 +20,7 @@ auth_backend để đọc báo cáo; công cụ chỉ kiểm tra, không tự s�
 Customer không còn mật khẩu mặc định 123456 khi đọc record thiếu password:
 account đã dùng password_hash không được đăng nhập bằng mật khẩu fallback
 trong luồng legacy. Luồng điện thoại/Google và hồ sơ legacy của dev được giữ;
-đăng nhập email bằng hash trên backend được triển khai riêng ở UC 4.
+đăng nhập email bằng hash trên backend đã được bổ sung trong [UC 4](email_password_login.md).
 
 Ở UC 3, đăng ký chỉ xác nhận tạo tài khoản thành công, rồi cho mở đăng nhập.
 Không cấp token giả hoặc lưu phiên local. Cấp phiên/đăng nhập và lưu phiên an

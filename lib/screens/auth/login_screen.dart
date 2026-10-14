@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../../services/auth_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../user/user_home_screen.dart';
 import 'otp_screen.dart';
 import 'profile_setup_screen.dart';
+import 'register_screen.dart';
 
 /// Bước 2: Chọn đăng nhập bằng Google hoặc Số điện thoại (SĐT)
 class LoginScreen extends StatefulWidget {
@@ -22,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoadingGoogle = false;
   bool _isLoadingPhone = false;
   bool _isLoadingEmail = false;
-  bool _showEmailLogin = false;
+  bool _showEmailLogin = true;
   bool _obscurePassword = true;
 
   @override
@@ -35,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- 2.1 ĐĂNG NHẬP BẰNG GOOGLE ---
   Future<void> _handleGoogleLogin() async {
+    if (_isLoadingEmail || _isLoadingGoogle || _isLoadingPhone) return;
     setState(() => _isLoadingGoogle = true);
     try {
       final result = await AuthService.loginWithGoogle();
@@ -71,6 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- 2.2 ĐĂNG NHẬP BẰNG SỐ ĐIỆN THOẠI (GỬI OTP) ---
   Future<void> _handlePhoneLogin() async {
+    if (_isLoadingEmail || _isLoadingGoogle || _isLoadingPhone) return;
     final phone = _phoneController.text.trim();
 
     if (phone.isEmpty) {
@@ -102,9 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Chuyển tiếp sang màn hình Xác minh OTP
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => OtpScreen(phone: phone),
-        ),
+        MaterialPageRoute(builder: (context) => OtpScreen(phone: phone)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -115,6 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- ĐĂNG NHẬP ADMIN / EMAIL (DỰ PHÒNG) ---
   Future<void> _handleEmailPasswordLogin() async {
+    if (_isLoadingEmail || _isLoadingGoogle || _isLoadingPhone) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -145,7 +148,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingEmail = false);
-      SnackbarHelper.showError(context, e.toString().replaceAll('Exception: ', ''));
+      SnackbarHelper.showError(
+        context,
+        e.toString().replaceAll('Exception: ', ''),
+      );
     }
   }
 
@@ -168,11 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.green.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.eco,
-                  size: 45,
-                  color: Colors.green,
-                ),
+                child: const Icon(Icons.eco, size: 45, color: Colors.green),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -233,7 +235,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                        side: BorderSide(
+                          color: Colors.grey.shade300,
+                          width: 1.5,
+                        ),
                         backgroundColor: Colors.white,
                       ),
                       child: _isLoadingGoogle
@@ -309,10 +314,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
                         hintText: 'Ví dụ: 0987654321',
-                        prefixIcon: const Icon(Icons.phone_android, color: Colors.green),
+                        prefixIcon: const Icon(
+                          Icons.phone_android,
+                          color: Colors.green,
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF7F9F7),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -323,7 +334,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Colors.green, width: 1.5),
+                          borderSide: const BorderSide(
+                            color: Colors.green,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -343,14 +357,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? const SizedBox(
                               height: 22,
                               width: 22,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
                             )
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
                                   'Gửi mã xác thực OTP',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 SizedBox(width: 8),
                                 Icon(Icons.arrow_forward, size: 20),
@@ -368,17 +388,35 @@ class _LoginScreenState extends State<LoginScreen> {
                   setState(() => _showEmailLogin = !_showEmailLogin);
                 },
                 icon: Icon(
-                  _showEmailLogin ? Icons.keyboard_arrow_up : Icons.admin_panel_settings_outlined,
+                  _showEmailLogin
+                      ? Icons.keyboard_arrow_up
+                      : Icons.admin_panel_settings_outlined,
                   color: Colors.black54,
                   size: 18,
                 ),
                 label: Text(
-                  _showEmailLogin ? 'Ẩn đăng nhập Email / Quản trị' : 'Đăng nhập bằng Email & Mật khẩu (Admin)',
+                  _showEmailLogin
+                      ? 'Ẩn đăng nhập Email'
+                      : 'Đăng nhập bằng Email & Mật khẩu',
                   style: const TextStyle(color: Colors.black54, fontSize: 13),
                 ),
               ),
 
               if (_showEmailLogin) ...[
+                TextButton(
+                  onPressed:
+                      _isLoadingEmail || _isLoadingGoogle || _isLoadingPhone
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
+                          );
+                        },
+                  child: const Text('Chưa có tài khoản? Đăng ký'),
+                ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -394,7 +432,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           labelText: 'Email',
                           prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -405,24 +445,38 @@ class _LoginScreenState extends State<LoginScreen> {
                           labelText: 'Mật khẩu',
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isLoadingEmail ? null : _handleEmailPasswordLogin,
+                          onPressed: _isLoadingEmail
+                              ? null
+                              : _handleEmailPasswordLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blueGrey.shade800,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           child: _isLoadingEmail
-                              ? const CircularProgressIndicator(color: Colors.white)
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
                               : const Text('Đăng nhập Email'),
                         ),
                       ),

@@ -1,10 +1,10 @@
 const { randomInt, randomUUID } = require('node:crypto');
-const { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, publicUser } = require('./security');
+const { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, verifyPassword, publicUser } = require('./security');
 
 class AuthService {
   constructor({ store, sendEmail, now = () => new Date(), config = {} }) {
     this.store = store; this.sendEmail = sendEmail; this.now = now;
-    this.config = { otpTtl: 300, attempts: 5, resend: 60, ...config };
+    this.config = { otpTtl: 300, attempts: 5, resend: 60, sessionTtl: 604800, ...config };
   }
   async requestOtp(emailValue, ip) {
     const email = normalizeEmail(emailValue), now = this.now();
@@ -60,6 +60,36 @@ class AuthService {
       await this.store.releaseProof(proofHash);
       throw error;
     }
+  }
+  async login(emailValue, password, ip) {
+    const email = normalizeEmail(emailValue), now = this.now();
+    await this.store.limit(`login-ip:${digest(ip)}`, 900, 50, now);
+    await this.store.limit(`login-email:${digest(email)}`, 900, 10, now);
+    const user = await this.store.findEmail(email);
+    if (!user || !await verifyPassword(password, user)) throw new AuthError(401, 'Email hoặc mật khẩu không chính xác.');
+    this.requireActive(user);
+    if (!(user.password_hash ?? '').startsWith('scrypt$')) {
+      await this.store.upgradePassword(user.id, await hashPassword(password.trim()));
+    }
+    return this.issueSession(user);
+  }
+  requireActive(user) {
+    if (user.isActive === false) throw new AuthError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ CSKH.');
+  }
+  async issueSession(user, provider = 'password') {
+    this.requireActive(user);
+    const token = secret(), expiresAt = new Date(this.now().getTime() + this.config.sessionTtl * 1000);
+    await this.store.putSession({ _id: digest(token), userId: user.id, provider, expiresAt });
+    return { token, expiresAt: expiresAt.toISOString(), customer: publicUser({ ...user, sessionProvider: provider }) };
+  }
+  async authenticate(token) {
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new AuthError(401, 'Phiên đăng nhập không hợp lệ.');
+    const session = await this.store.getSession(digest(token), this.now());
+    if (!session) throw new AuthError(401, 'Phiên đăng nhập đã hết hạn.');
+    const user = await this.store.findId(session.userId);
+    if (!user) throw new AuthError(401, 'Tài khoản không tồn tại.');
+    this.requireActive(user);
+    return { ...user, sessionProvider: session.provider };
   }
 }
 module.exports = { AuthService };

@@ -49,6 +49,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
   }
 
   void _onSavePressed() async {
+    if (AuthService.isBackendSession) {
+      SnackbarHelper.showError(context, 'Hồ sơ này cần được cập nhật qua máy chủ xác thực.');
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
