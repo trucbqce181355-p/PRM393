@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/voucher.dart';
 import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
+import '../user/user_vouchers_screen.dart';
 
 class AdminVouchersScreen extends StatefulWidget {
   const AdminVouchersScreen({super.key});
@@ -36,7 +37,7 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final code = codeController.text;
                 final desc = descController.text;
                 final discount = double.tryParse(discountController.text) ?? 0.0;
@@ -49,13 +50,11 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     discountAmount: discount,
                     minPurchase: minPurchase,
                   );
-                  DataService.addVoucher(newVoucher).then((_) {
-                    if (mounted) {
-                      setState(() {});
-                      Navigator.pop(context);
-                      SnackbarHelper.showSuccess(context, 'Thêm voucher thành công');
-                    }
-                  });
+                  await DataService.addVoucher(newVoucher);
+                  if (!context.mounted) return;
+                  setState(() {});
+                  Navigator.pop(context);
+                  SnackbarHelper.showSuccess(context, 'Thêm voucher thành công');
                 } else {
                   SnackbarHelper.showError(context, 'Vui lòng nhập mã và số tiền giảm');
                 }
@@ -77,7 +76,18 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
         foregroundColor: Colors.black87,
         actions: [
           IconButton(
+            icon: const Icon(Icons.wallet_outlined),
+            tooltip: 'Ví Voucher (User)',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UserVouchersScreen()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Thêm Voucher',
             onPressed: _addVoucher,
           )
         ],
