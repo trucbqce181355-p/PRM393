@@ -156,5 +156,9 @@ class AuthService {
     const updated = await this.store.updateProfile(user.id, fields, Boolean(password));
     return publicUser({ ...updated, sessionProvider: user.sessionProvider });
   }
+  async logout(token) {
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new AuthError(401, 'Phiên đăng nhập không hợp lệ.');
+    await this.store.deleteSession(digest(token));
+  }
 }
 module.exports = { AuthService };

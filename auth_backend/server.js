@@ -71,6 +71,11 @@ async function main() {
       .then(user => service.saveProfile(user, req.body ?? {}))
       .then(data => res.json({ success: true, data })).catch(next);
   });
+  app.post('/api/auth/logout', (req, res, next) => {
+    const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+    service.logout(token)
+      .then(() => res.json({ success: true, data: {} })).catch(next);
+  });
   app.get('/api/health', async (req, res) => {
     try {
       await db.command({ ping: 1 });

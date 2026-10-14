@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import 'auth_wrapper.dart';
 
-/// Clears the navigation stack when an accepted session expires or is rejected.
+/// Clears the navigation stack when a session expires, is rejected or signs out.
 class AuthSessionGuard extends StatefulWidget {
   const AuthSessionGuard({
     super.key,

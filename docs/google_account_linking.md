@@ -33,4 +33,4 @@ App gom yêu cầu Google đang chạy; callback trùng không mở lại bướ
 Hủy hoặc đổi luồng đăng nhập làm kết quả cũ không ghi đè phiên mới. Sau liên
 kết, app nhận phiên Fruitopia của tài khoản gốc. Hồ sơ còn thiếu xử lý ở UC 7
 theo google_profile_completion.md;
-lưu/khôi phục phiên an toàn theo auth_sessions.md (UC 8); thu hồi phiên ở UC 9.
+lưu/khôi phục phiên an toàn theo auth_sessions.md (UC 8); thu hồi phiên theo auth_sign_out.md (UC 9).

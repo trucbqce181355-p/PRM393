@@ -22,6 +22,8 @@ class AuthService {
   static int _sessionGeneration = 0;
   static Future<void>? _restoration;
   static Future<void>? _refresh;
+  static Future<void>? _signOut;
+  static String? _revokedToken;
   static Future<void> _storageQueue = Future<void>.value();
   static Timer? _expiryTimer;
   static bool _isLoggedIn = false;
@@ -131,6 +133,17 @@ class AuthService {
   }
 
   static Future<void> initSession() async {
+    if (_signOut != null || _revokedToken != null) {
+      if (_revokedToken != null) {
+        sessionStatus.value = AuthSessionStatus.restoring;
+      }
+      try {
+        await logout();
+      } catch (_) {
+        // Cleanup failure is already exposed through sessionStatus/restoreError.
+      }
+      return;
+    }
     if (_restoration != null) return _restoration;
     final restoration = _restoreSession();
     _restoration = restoration;
@@ -219,7 +232,7 @@ class AuthService {
   }
 
   static Future<void> refreshSession() async {
-    if (!isBackendSession) return;
+    if (!isBackendSession || _signOut != null) return;
     if (_refresh != null) return _refresh;
     final refresh = _refreshSession();
     _refresh = refresh;
@@ -273,6 +286,7 @@ class AuthService {
   }
 
   static Future<bool> loginWithGoogle() async {
+    _requireSignOutFinished();
     if (!SupabaseConfig.isConfigured) {
       throw StateError('Chưa cấu hình đăng nhập Google.');
     }
@@ -383,19 +397,79 @@ class AuthService {
   static Future<bool> verifyOTP(String otp) => EmailOtpService.verifyOtp(otp);
 
   static Future<void> logout() async {
+    if (_signOut != null) return _signOut;
+    final signOut = _performLogout();
+    _signOut = signOut;
+    try {
+      await signOut;
+    } finally {
+      if (identical(_signOut, signOut)) _signOut = null;
+    }
+  }
+
+  static Future<void> _performLogout() async {
+    final token = _revokedToken ?? _token;
     final generation = ++_sessionGeneration;
     cancelGoogleSignIn();
+    if (token != null && _revokedToken != token) {
+      await AuthApiService.request('POST', '/logout', token: token);
+      if (generation != _sessionGeneration) {
+        throw StateError('Phiên đăng nhập đã thay đổi. Vui lòng thử lại.');
+      }
+      _revokedToken = token;
+    }
+    // A revoked identity must not remain usable if device cleanup fails.
+    _clearIdentity();
+    try {
+      await _clearLocalSession(generation);
+      _revokedToken = null;
+    } catch (_) {
+      if (generation == _sessionGeneration) {
+        restoreError = 'Phiên đã kết thúc nhưng chưa thể xóa dữ liệu đăng nhập trên thiết bị. Vui lòng thử lại.';
+        sessionStatus.value = AuthSessionStatus.unavailable;
+        sessionInvalidations.value++;
+      }
+      throw StateError(
+        restoreError ?? 'Không thể hoàn tất đăng xuất. Vui lòng thử lại.',
+      );
+    }
+  }
+
+  // Recovery for an unreadable/unverified saved credential, not an accepted login.
+  static Future<void> discardSavedSession() async {
+    if (isBackendSession || _revokedToken != null || _signOut != null) {
+      return logout();
+    }
+    final generation = ++_sessionGeneration;
+    cancelGoogleSignIn();
+    await _clearLocalSession(generation);
+  }
+
+  static Future<void> _clearLocalSession(int generation) async {
     await _discardStoredSession(generation);
-    if (generation != _sessionGeneration) return;
+    if (generation != _sessionGeneration) {
+      throw StateError('Phiên đăng nhập đã thay đổi. Vui lòng thử lại.');
+    }
     if (_googleSubscription != null) {
-      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      await Supabase.instance.client.auth
+          .signOut(scope: SignOutScope.local)
+          .timeout(const Duration(seconds: 15));
     }
     await StorageService.clearAuthSession();
-    if (generation != _sessionGeneration) return;
+    if (generation != _sessionGeneration) {
+      throw StateError('Phiên đăng nhập đã thay đổi. Vui lòng thử lại.');
+    }
     _clearIdentity();
     restoreError = null;
     sessionNotice = null;
     sessionStatus.value = AuthSessionStatus.signedOut;
+    sessionInvalidations.value++;
+  }
+
+  static void _requireSignOutFinished() {
+    if (_signOut != null || _revokedToken != null) {
+      throw StateError('Vui lòng hoàn tất đăng xuất trước khi đăng nhập lại.');
+    }
   }
 
   // ========================================================
@@ -403,6 +477,7 @@ class AuthService {
   // ========================================================
   /// Email/password authentication is authoritative on the backend.
   static Future<String> login(String email, String password) async {
+    _requireSignOutFinished();
     cancelGoogleSignIn();
     final generation = ++_sessionGeneration;
     final data = await AuthApiService.request(

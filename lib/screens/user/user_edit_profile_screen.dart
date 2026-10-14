@@ -4,7 +4,6 @@ import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../services/mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
-import '../auth/login_screen.dart';
 
 class UserEditProfileScreen extends StatefulWidget {
   const UserEditProfileScreen({super.key});
@@ -98,12 +97,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
             
             if (_isChangingPassword) {
               // Văng ra trang đăng nhập
-              AuthService.logout();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
+              await AuthService.logout();
             } else {
               Navigator.pop(context, true);
             }

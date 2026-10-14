@@ -131,5 +131,6 @@ class MongoStore {
   }
   async putSession(session) { await this.db.collection('auth_sessions').insertOne(session); }
   getSession(hash, now) { return this.db.collection('auth_sessions').findOne({ _id: hash, expiresAt: { $gt: now } }); }
+  async deleteSession(hash) { await this.db.collection('auth_sessions').deleteOne({ _id: hash }); }
 }
 module.exports = { MongoStore, initializeStore, inspectUsers };

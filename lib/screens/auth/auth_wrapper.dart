@@ -64,7 +64,7 @@ class _SessionRestoreErrorState extends State<_SessionRestoreError> {
     if (_clearing) return;
     setState(() => _clearing = true);
     try {
-      await AuthService.logout();
+      await AuthService.discardSavedSession();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

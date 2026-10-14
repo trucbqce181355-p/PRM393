@@ -53,7 +53,7 @@ lúc ghi, kho được đưa về token của phiên đã chấp nhận hoặc x
 Không tự refresh/gia hạn token Fruitopia. Sau thời hạn SESSION_TTL_SECONDS
 (mặc định 7 ngày), cần đăng nhập lại. Xóa token local được nối vào logout để
 không khôi phục lại ở lần mở app tiếp theo; xác nhận và thu hồi phiên backend
-được bổ sung riêng ở UC 9.
+thực hiện theo auth_sign_out.md (UC 9).
 
 ## Phạm vi kiểm tra khi tách commit
 

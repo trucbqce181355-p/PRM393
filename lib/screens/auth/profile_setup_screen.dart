@@ -5,7 +5,7 @@ import '../../services/auth_service.dart';
 import '../../utils/account_password_validator.dart';
 import '../../utils/snackbar_helper.dart';
 import '../user/user_home_screen.dart';
-import 'login_screen.dart';
+import '../../utils/sign_out_dialog.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -91,20 +91,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (_saving || _leaving || _completed) return;
     setState(() => _leaving = true);
     try {
-      await AuthService.logout();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (_) {
-      if (mounted) {
-        SnackbarHelper.showError(
-          context,
-          'Không thể đăng xuất. Vui lòng thử lại.',
-        );
-      }
+      await showSignOutDialog(context);
     } finally {
       if (mounted) setState(() => _leaving = false);
     }
