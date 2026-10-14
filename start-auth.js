@@ -19,8 +19,8 @@ async function main() {
   const directory = path.join(__dirname, 'auth_backend');
   if (!fs.existsSync(path.join(directory, '.env'))) throw new Error('Create auth_backend/.env from .env.example first.');
   if (!fs.existsSync(path.join(directory, 'node_modules'))) throw new Error('Run npm ci in auth_backend first.');
-  const expectedRevision = createHash('sha256')
-    .update(fs.readFileSync(path.join(directory, 'server.js'), 'utf8')).digest('hex');
+  const expectedRevision = createHash('sha256').update(['server.js', 'auth-service.js', 'security.js', 'store.js']
+    .map(file => fs.readFileSync(path.join(directory, file), 'utf8')).join('\n')).digest('hex');
   const pidFile = path.join(directory, 'auth.pid.local.json');
   const existing = await health();
   if (existing) {

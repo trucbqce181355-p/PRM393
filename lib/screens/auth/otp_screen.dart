@@ -1,109 +1,113 @@
-import '../../utils/snackbar_helper.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'profile_setup_screen.dart';
-import '../../services/auth_service.dart';
+
+import '../../services/email_otp_service.dart';
+import '../../utils/snackbar_helper.dart';
 
 class OtpScreen extends StatefulWidget {
-  const OtpScreen({super.key});
-
+  const OtpScreen({super.key, required this.email});
+  final String email;
   @override
   State<OtpScreen> createState() => _OtpScreenState();
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  final TextEditingController _otpController = TextEditingController();
-  bool _isLoading = false;
+  Timer? _timer;
+  int _remaining = 0;
+  bool _sending = false;
 
-  void _onVerifyPressed() async {
-    if (_otpController.text.length < 6) {
-      SnackbarHelper.showError(context, 'Vui lòng nhập đủ 6 số OTP');
-      return;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
 
-    setState(() => _isLoading = true);
-    bool isValid = await AuthService.verifyOTP(_otpController.text);
-    setState(() => _isLoading = false);
+  void _startCountdown() {
+    _timer?.cancel();
+    _remaining = EmailOtpService.resendAfter;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_remaining > 0) _remaining--;
+      });
+      if (_remaining == 0) timer.cancel();
+    });
+  }
 
-    if (isValid && mounted) {
-      Navigator.pushReplacement(
+  Future<void> _resend() async {
+    if (_sending || _remaining > 0) return;
+    setState(() => _sending = true);
+    try {
+      await EmailOtpService.sendOtp(widget.email);
+      if (!mounted) return;
+      setState(_startCountdown);
+      SnackbarHelper.showSuccess(
         context,
-        MaterialPageRoute(builder: (context) => const ProfileSetupScreen()),
+        'Mã OTP mới đã được gửi tới email của bạn.',
       );
-    } else if (mounted) {
-      SnackbarHelper.showError(context, 'Mã OTP không hợp lệ. Hãy dùng 123456.');
+    } catch (error) {
+      if (mounted) {
+        SnackbarHelper.showError(
+          context,
+          error is StateError
+              ? error.message
+              : 'Không thể gửi lại OTP. Vui lòng thử lại.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Xác thực Email',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('OTP email')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.mark_email_read_outlined,
+              size: 64,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Mã OTP gồm 6 số đã được gửi tới ${widget.email}.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Vui lòng kiểm tra hộp thư và thư rác.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            TextButton.icon(
+              onPressed: _sending || _remaining > 0 ? null : _resend,
+              icon: const Icon(Icons.refresh),
+              label: Text(
+                _sending
+                    ? 'Đang gửi...'
+                    : _remaining > 0
+                    ? 'Gửi lại OTP sau ${_remaining}s'
+                    : 'Gửi lại OTP',
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Chúng tôi vừa gửi mã gồm 6 số đến email của bạn',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 48),
-              TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, letterSpacing: 8),
-                decoration: InputDecoration(
-                  counterText: '',
-                  hintText: '000000',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onVerifyPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Xác nhận OTP',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
-                        ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
