@@ -4,7 +4,6 @@ import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../services/mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
-import '../auth/login_screen.dart';
 
 class UserEditProfileScreen extends StatefulWidget {
   const UserEditProfileScreen({super.key});
@@ -49,6 +48,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
   }
 
   void _onSavePressed() async {
+    if (AuthService.isBackendSession) {
+      SnackbarHelper.showError(context, 'Hồ sơ này cần được cập nhật qua máy chủ xác thực.');
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
@@ -94,12 +97,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
             
             if (_isChangingPassword) {
               // Văng ra trang đăng nhập
-              AuthService.logout();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
+              await AuthService.logout();
             } else {
               Navigator.pop(context, true);
             }

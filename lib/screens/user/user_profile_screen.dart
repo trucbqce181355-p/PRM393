@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
-import '../auth/login_screen.dart';
-import 'user_home_screen.dart';
+import '../../utils/sign_out_dialog.dart';
 import 'user_orders_screen.dart';
 import 'user_addresses_screen.dart';
 import 'user_payment_methods_screen.dart';
@@ -130,7 +129,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       'Đăng xuất', 
                       'Thoát khỏi tài khoản hiện tại', 
                       () {
-                        _showLogoutDialog(context);
+                        showSignOutDialog(context);
                       },
                       isDestructive: true,
                     ),
@@ -192,35 +191,4 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Đăng xuất'),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              AuthService.logout();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                (route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Đăng xuất', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 }

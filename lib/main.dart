@@ -1,5 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'config/supabase_config.dart';
 import 'screens/auth/auth_wrapper.dart';
+import 'screens/auth/auth_session_guard.dart';
 import 'screens/admin/admin_vouchers_screen.dart';
 import 'screens/user/user_vouchers_screen.dart';
 import 'screens/user/checkout_screen.dart';
@@ -18,7 +25,20 @@ void main() async {
   await StorageService.init();
 
   // 2. Khởi tạo & nạp phiên đăng nhập từ Local Storage (Token)
-  await AuthService.initSession();
+  unawaited(AuthService.initSession());
+  if (SupabaseConfig.isConfigured) {
+    final prefs = await SharedPreferences.getInstance();
+    final projectRef = Uri.parse(SupabaseConfig.url).host.split('.').first;
+    await prefs.remove('sb-$projectRef-auth-token');
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.publishableKey,
+      authOptions: const FlutterAuthClientOptions(
+        localStorage: EmptyLocalStorage(),
+      ),
+    );
+    AuthService.listenGoogleAuth();
+  }
 
   // 3. Kết nối MongoDB và load cache
   try {
@@ -31,12 +51,19 @@ void main() async {
   runApp(const MyApp());
 }
 
+final _authNavigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _authNavigatorKey,
+      builder: (context, child) => AuthSessionGuard(
+        navigatorKey: _authNavigatorKey,
+        child: child ?? const SizedBox.shrink(),
+      ),
       title: 'Fruitopia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -63,7 +90,10 @@ class DevNavigationHubScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Fruitopia - Navigation Hub', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Fruitopia - Navigation Hub',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         centerTitle: true,
@@ -97,7 +127,8 @@ class DevNavigationHubScreen extends StatelessWidget {
           _buildActionCard(
             context,
             title: '3. Màn hình Checkout',
-            subtitle: 'Tự động kiểm tra điều kiện tối thiểu và trừ tiền hóa đơn',
+            subtitle:
+                'Tự động kiểm tra điều kiện tối thiểu và trừ tiền hóa đơn',
             icon: Icons.shopping_cart_checkout,
             color: Colors.green,
             destination: const CheckoutScreen(),
@@ -147,7 +178,12 @@ class DevNavigationHubScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFlowHeader(String title, String subtitle, IconData icon, Color color) {
+  Widget _buildFlowHeader(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -166,12 +202,22 @@ class DevNavigationHubScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: color,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -198,7 +244,10 @@ class DevNavigationHubScreen extends StatelessWidget {
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => destination));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => destination),
+          );
         },
       ),
     );
