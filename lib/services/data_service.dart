@@ -24,13 +24,111 @@ class DataService {
     await _syncFromMongoDB();
   }
 
+  static List<Product> get defaultProducts => [
+    Product(
+      id: 'p_tao_envy',
+      name: 'Táo Envy New Zealand',
+      description: 'Táo Envy New Zealand nhập khẩu chính ngạch, trái to tròn đều, vỏ đỏ ruby bắt mắt. Thịt táo chắc, giòn tan sảng khoái và ngọt thanh đậm vị, hương thơm tự nhiên đặc trưng. Giàu vitamin C, chất chống oxy hóa và khoáng chất tốt cho sức khỏe.',
+      price: 185000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=600',
+      rating: 5.0,
+      stock: 85,
+      category: 'Trái Cây Nhập Khẩu',
+      origin: 'New Zealand',
+      freshness: '100% Tươi giòn mới cập cảng',
+    ),
+    Product(
+      id: 'p_xoai_cat',
+      name: 'Xoài Cát Chu Cao Lãnh',
+      description: 'Xoài Cát Chu đặc sản Cao Lãnh - Đồng Tháp, trái chín vàng ươm tự nhiên, thịt dày mịn không xơ, vị ngọt đậm đà thơm ngát. Chuẩn VietGAP an toàn tuyệt đối.',
+      price: 65000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=600',
+      rating: 4.9,
+      stock: 120,
+      category: 'Trái Cây Nhiệt Đới',
+      origin: 'Đồng Tháp, Việt Nam',
+      freshness: '100% Thu hoạch tại vườn trong ngày',
+    ),
+    Product(
+      id: 'p_sau_rieng',
+      name: 'Sầu Riêng Ri6 Cơm Vàng Hạt Lép',
+      description: 'Sầu riêng Ri6 miền Tây chuẩn cơm vàng hạt lép, múi khô ráo béo ngậy ngọt lịm. Chín già tự nhiên rụng cành, cam kết không nhúng thuốc, bao 1 đổi 1.',
+      price: 145000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1589139265215-d7293a1cf552?auto=format&fit=crop&q=80&w=600',
+      rating: 4.8,
+      stock: 40,
+      category: 'Trái Cây Nhiệt Đới',
+      origin: 'Bến Tre, Việt Nam',
+      freshness: 'Tươi mới rụng vườn hôm nay',
+    ),
+    Product(
+      id: 'p_nho_mau_don',
+      name: 'Nho Mẫu Đơn Shine Muscat',
+      description: 'Nho Mẫu Đơn Shine Muscat nhập khẩu, chùm dày quả xanh ngọc bích không hạt, vỏ mỏng giòn ngọt thơm dịu hương hoa nhài quý phái.',
+      price: 420000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&q=80&w=600',
+      rating: 5.0,
+      stock: 25,
+      category: 'Trái Cây Nhập Khẩu',
+      origin: 'Nhật Bản',
+      freshness: '99% Tươi xanh nguyên phấn bảo quản lạnh',
+    ),
+    Product(
+      id: 'p_thanh_long',
+      name: 'Thanh Long Ruột Đỏ Hữu Cơ',
+      description: 'Thanh Long ruột đỏ Bình Thuận tươi mát, quả căng mọng tai xanh, ruột đỏ thẫm ngọt thanh giàu chất chống lão hóa tự nhiên.',
+      price: 45000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1527325678964-54921661f888?auto=format&fit=crop&q=80&w=600',
+      rating: 4.7,
+      stock: 150,
+      category: 'Trái Cây Nhiệt Đới',
+      origin: 'Bình Thuận, Việt Nam',
+      freshness: '100% Tươi mới hái sáng nay',
+    ),
+    Product(
+      id: 'p_cam_cara',
+      name: 'Cam Cara Ruột Đỏ Úc',
+      description: 'Cam Cara nhập khẩu Úc ruột đỏ không hạt, tép cam mọng nước ngọt thanh không chua, giàu vitamin C và Lycopene.',
+      price: 110000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&q=80&w=600',
+      rating: 4.9,
+      stock: 60,
+      category: 'Trái Cây Nhập Khẩu',
+      origin: 'Australia (Úc)',
+      freshness: 'Tươi mọng nước bảo quản chuẩn quốc tế',
+    ),
+    Product(
+      id: 'p_mang_cut',
+      name: 'Măng Cụt Lái Thiêu',
+      description: 'Măng cụt Lái Thiêu chính gốc, vỏ mỏng cuống xanh, múi trắng ngần vị chua ngọt hài hòa thanh tao.',
+      price: 95000,
+      unit: 'kg',
+      imageUrl: 'https://images.unsplash.com/photo-1589139265215-d7293a1cf552?auto=format&fit=crop&q=80&w=600',
+      rating: 4.9,
+      stock: 55,
+      category: 'Trái Cây Nhiệt Đới',
+      origin: 'Bình Dương, Việt Nam',
+      freshness: '100% Tươi rói cuống xanh',
+    ),
+  ];
+
   static void _loadData() {
     // Tải Products
     final productsData = _box.get('products');
-    if (productsData != null) {
-      products = (productsData as List).map((e) => Product.fromJson(Map<String, dynamic>.from(e))).toList();
+    if (productsData != null && productsData is List && productsData.isNotEmpty) {
+      products = productsData.map((e) => Product.fromJson(Map<String, dynamic>.from(e))).toList();
+      // Ensure Táo Envy is always available
+      if (!products.any((p) => p.name.contains('Táo Envy'))) {
+        products.insert(0, defaultProducts.first);
+      }
     } else {
-      products = [];
+      products = List.from(defaultProducts);
       _saveProducts();
     }
 
@@ -69,6 +167,12 @@ class DataService {
     try {
       var colProducts = MongoDBService.getCollection("products");
       var remoteProducts = await colProducts.find().toList();
+      if (remoteProducts.isEmpty) {
+        for (var p in defaultProducts) {
+          await colProducts.insertOne(p.toJson());
+        }
+        remoteProducts = await colProducts.find().toList();
+      }
       products = remoteProducts.map((e) {
         return Product(
           id: e['id']?.toString() ?? '',
@@ -79,11 +183,17 @@ class DataService {
           imageUrl: e['imageUrl']?.toString() ?? '',
           stock: (e['stock'] as num?)?.toInt() ?? 0,
           category: e['category']?.toString() ?? 'Khác',
+          origin: e['origin']?.toString() ?? 'Việt Nam',
+          freshness: e['freshness']?.toString() ?? '100% Tươi mới trong ngày',
           rating: (e['rating'] as num?)?.toDouble() ?? 0.0,
           isActive: e['isActive'] ?? true,
           isDeleted: e['isDeleted'] ?? false,
         );
       }).toList();
+
+      if (!products.any((p) => p.name.contains('Táo Envy'))) {
+        products.insert(0, defaultProducts.first);
+      }
       await _saveProducts();
 
       var colCustomers = MongoDBService.getCollection("users");
@@ -118,13 +228,12 @@ class DataService {
       var colCategories = MongoDBService.getCollection("categories");
       var remoteCategories = await colCategories.find().toList();
       if (remoteCategories.isEmpty) {
-        // Tạo sẵn các phân loại mẫu nếu DB trống
         final defaultCats = [
-          {'id': 'c1', 'name': 'Trái Cây Nhập Khẩu'},
-          {'id': 'c2', 'name': 'Trái Cây Việt Nam'},
+          {'id': 'c1', 'name': 'Trái Cây Nhiệt Đới'},
+          {'id': 'c2', 'name': 'Trái Cây Nhập Khẩu'},
           {'id': 'c3', 'name': 'Trái Cây Cắt Sẵn'},
-          {'id': 'c4', 'name': 'Trái Cây Thùng'},
-          {'id': 'c5', 'name': 'Trái Cây Mùa Hè'},
+          {'id': 'c4', 'name': 'Trái Cây Theo Mùa'},
+          {'id': 'c5', 'name': 'Trái Cây Thùng'},
         ];
         await colCategories.insertAll(defaultCats);
         remoteCategories = defaultCats;
@@ -169,6 +278,8 @@ class DataService {
         "imageUrl": product.imageUrl,
         "stock": product.stock,
         "category": product.category,
+        "origin": product.origin,
+        "freshness": product.freshness,
         "rating": product.rating,
         "isActive": product.isActive,
         "isDeleted": product.isDeleted,
@@ -197,6 +308,8 @@ class DataService {
               .set('imageUrl', product.imageUrl)
               .set('stock', product.stock)
               .set('category', product.category)
+              .set('origin', product.origin)
+              .set('freshness', product.freshness)
               .set('rating', product.rating)
               .set('isActive', product.isActive)
               .set('isDeleted', product.isDeleted)

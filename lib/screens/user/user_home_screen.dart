@@ -22,6 +22,10 @@ class UserHomeScreen extends StatefulWidget {
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final PageController _bannerController = PageController();
+  int _currentBannerIndex = 0;
+
   String _searchQuery = '';
   String _selectedCategory = 'Tất cả';
   String _selectedSort = 'Sản phẩm nổi bật';
@@ -38,7 +42,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     'Tồn kho giảm dần'
   ];
 
-  List<String> _selectedPriceRanges = [];
   final List<String> _priceRanges = [
     'Dưới 500.000₫',
     '500.000₫ - 1.000.000₫',
@@ -46,12 +49,98 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     '2.000.000₫ - 3.000.000₫',
     'Trên 3.000.000₫',
   ];
+  final List<String> _selectedPriceRanges = [];
+
+  // Danh mục trái cây
+  final List<Map<String, String>> _categories = [
+    {
+      'name': 'Tất cả',
+      'image': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&q=80&w=200',
+    },
+    {
+      'name': 'Trái Cây Nhiệt Đới',
+      'image': 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=200',
+    },
+    {
+      'name': 'Trái Cây Nhập Khẩu',
+      'image': 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=200',
+    },
+    {
+      'name': 'Trái Cây Theo Mùa',
+      'image': 'https://images.unsplash.com/photo-1490818387583-1b5ba22177d0?auto=format&fit=crop&q=80&w=200',
+    },
+    {
+      'name': 'Trái Cây Cắt Sẵn',
+      'image': 'https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&q=80&w=200',
+    },
+    {
+      'name': 'Trái Cây Thùng',
+      'image': 'https://images.unsplash.com/photo-1589139265215-d7293a1cf552?auto=format&fit=crop&q=80&w=200',
+    },
+  ];
+
+  // Banner trái cây theo mùa
+  final List<Map<String, dynamic>> _seasonalBanners = [
+    {
+      'badge': 'MÙA VÀNG NHIỆT ĐỚI',
+      'title': 'Trái Cây Nhiệt Đới Tươi Mát',
+      'subtitle': 'Xoài Cát Chu, Sầu Riêng Ri6 ngọt béo vừa hái',
+      'tag': 'ƯU ĐÃI ĐẾN 25%',
+      'category': 'Trái Cây Nhiệt Đới',
+      'image': 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=800',
+      'gradient': [Color(0xFFE65100), Color(0xFFFF9800)],
+    },
+    {
+      'badge': 'NHẬP KHẨU CAO CẤP',
+      'title': 'Táo Envy New Zealand Tươi Giòn',
+      'subtitle': 'Nhập khẩu đường bay, thịt giòn tan, vị ngọt đậm',
+      'tag': 'CHUẨN GLOBALGAP',
+      'category': 'Trái Cây Nhập Khẩu',
+      'image': 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=800',
+      'gradient': [Color(0xFF880E4F), Color(0xFFE91E63)],
+    },
+    {
+      'badge': 'THU HOẠCH HỮU CƠ',
+      'title': 'Trái Cây Theo Mùa Tươi Rót',
+      'subtitle': 'Nho Mẫu Đơn & Cam Cara ruột đỏ mọng nước',
+      'tag': 'FREESHIP TOÀN QUỐC',
+      'category': 'Trái Cây Nhập Khẩu',
+      'image': 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&q=80&w=800',
+      'gradient': [Color(0xFF1B5E20), Color(0xFF4CAF50)],
+    },
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _bannerController.dispose();
+    super.dispose();
+  }
 
   List<Product> get _filteredProducts {
     final filtered = DataService.products.where((p) {
-      final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase()) || 
-                            p.price.toString().contains(_searchQuery);
-      final matchesCategory = _selectedCategory == 'Tất cả' || p.category == _selectedCategory;
+      if (p.isDeleted || !p.isActive) return false;
+
+      final query = _searchQuery.trim().toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          p.name.toLowerCase().contains(query) ||
+          p.origin.toLowerCase().contains(query) ||
+          p.category.toLowerCase().contains(query) ||
+          p.description.toLowerCase().contains(query) ||
+          p.price.toString().contains(query);
+
+      bool matchesCategory = true;
+      if (_selectedCategory != 'Tất cả') {
+        final catLower = _selectedCategory.toLowerCase();
+        final pCatLower = p.category.toLowerCase();
+        if (_selectedCategory == 'Trái Cây Nhiệt Đới') {
+          matchesCategory = pCatLower.contains('nhiệt đới') || pCatLower.contains('việt nam');
+        } else if (_selectedCategory == 'Trái Cây Nhập Khẩu') {
+          matchesCategory = pCatLower.contains('nhập khẩu');
+        } else {
+          matchesCategory = pCatLower.contains(catLower) || catLower.contains(pCatLower);
+        }
+      }
       
       bool matchesPrice = true;
       if (_selectedPriceRanges.isNotEmpty) {
@@ -77,7 +166,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     } else if (_selectedSort == 'Tên: Z-A') {
       filtered.sort((a, b) => b.name.compareTo(a.name));
     }
-    // Default or other options can rely on existing order
 
     return filtered;
   }
@@ -203,44 +291,64 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: TextField(
+                        controller: _searchController,
                         onChanged: (value) {
                           setState(() {
                             _searchQuery = value;
                           });
                         },
                         decoration: InputDecoration(
-                          hintText: 'Tìm kiếm sản phẩm...',
-                          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 28),
+                          hintText: 'Tìm "Táo Envy", xoài, sầu riêng...',
+                          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                          prefixIcon: const Icon(Icons.search, color: Colors.green, size: 24),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                )
+                              : null,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 1), // Blue border
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 1),
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.green, width: 2),
                           ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Container(
-                    height: 50,
+                    height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: PopupMenuButton<String>(
                       initialValue: _selectedSort,
@@ -249,7 +357,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           _selectedSort = newValue;
                         });
                       },
-                      offset: const Offset(0, 50), // Show menu below the button
+                      offset: const Offset(0, 50),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       itemBuilder: (BuildContext context) {
                         return _sortOptions.map((String value) {
@@ -258,7 +366,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             child: Row(
                               children: [
                                 if (value == _selectedSort)
-                                  const Icon(Icons.check, size: 16, color: Colors.black87)
+                                  const Icon(Icons.check, size: 16, color: Colors.green)
                                 else
                                   const SizedBox(width: 16),
                                 const SizedBox(width: 8),
@@ -271,10 +379,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.sort_by_alpha, color: Colors.black87, size: 20),
-                          SizedBox(width: 8),
-                          Text('Sắp xếp', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14)),
-                          SizedBox(width: 4),
+                          Icon(Icons.sort, color: Colors.green, size: 20),
+                          SizedBox(width: 6),
+                          Text('Sắp xếp', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)),
+                          SizedBox(width: 2),
                           Icon(Icons.arrow_drop_down, color: Colors.grey),
                         ],
                       ),
@@ -282,20 +390,71 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
 
-              // Categories
-              SizedBox(
-                height: 120, // Increased height for image and text
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
+              // Gợi ý tìm kiếm nhanh (Đặc biệt: Táo Envy)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
                   children: [
-                    _buildCategoryChip('Trái Cây Nhập Khẩu', 'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&q=80&w=150'),
-                    _buildCategoryChip('Trái Cây Việt Nam', 'https://images.unsplash.com/photo-1550985543-f47f38aeea53?auto=format&fit=crop&q=80&w=150'),
-                    _buildCategoryChip('Trái Cây Cắt Sẵn', 'https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&q=80&w=150'),
-                    _buildCategoryChip('Trái Cây Thùng', 'https://images.unsplash.com/photo-1589139265215-d7293a1cf552?auto=format&fit=crop&q=80&w=150'),
-                    _buildCategoryChip('Trái Cây Mùa Hè', 'https://images.unsplash.com/photo-1490818387583-1b5ba22177d0?auto=format&fit=crop&q=80&w=150'),
+                    Text('Gợi ý:', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 8),
+                    _buildQuickTag('Táo Envy', isHot: true),
+                    _buildQuickTag('Trái Cây Nhiệt Đới'),
+                    _buildQuickTag('Trái Cây Nhập Khẩu'),
+                    _buildQuickTag('Sầu Riêng Ri6'),
+                    _buildQuickTag('Xoài Cát Chu'),
                   ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Banner Trái Cây Theo Mùa (Dev 1 Flow)
+              _buildSeasonalBannerSection(),
+              const SizedBox(height: 20),
+
+              // Tiêu đề Danh mục
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Danh Mục Trái Cây',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  if (_selectedCategory != 'Tất cả')
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedCategory = 'Tất cả';
+                        });
+                      },
+                      child: const Text(
+                        'Xem tất cả',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Categories Chips List
+              SizedBox(
+                height: 124,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _categories.length,
+                  itemBuilder: (context, index) {
+                    final cat = _categories[index];
+                    return _buildCategoryChip(cat['name']!, cat['image']!);
+                  },
                 ),
               ),
               const SizedBox(height: 16),
@@ -328,7 +487,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           children: _priceRanges.map((range) {
                             return Column(
                               children: [
-                                const Divider(height: 1), // Divider like the image
+                                const Divider(height: 1),
                                 CheckboxListTile(
                                   title: Text(range, style: TextStyle(color: Colors.grey[800], fontSize: 14)),
                                   value: _selectedPriceRanges.contains(range),
@@ -355,12 +514,43 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
-
-              // Title
-              const Text('Khuyến Mãi', style: TextStyle(fontSize: 24, fontWeight: FontWeight.normal, color: Colors.black87)),
-              const SizedBox(height: 16),
               const SizedBox(height: 24),
+
+              // Title & Search/Filter Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _searchQuery.isNotEmpty
+                            ? 'Kết quả cho "$_searchQuery"'
+                            : (_selectedCategory == 'Tất cả' ? 'Trái Cây Tươi Mới' : _selectedCategory),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hiển thị ${_filteredProducts.length} sản phẩm',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  if (_searchQuery.isNotEmpty || _selectedCategory != 'Tất cả')
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _selectedCategory = 'Tất cả';
+                        });
+                      },
+                      icon: const Icon(Icons.refresh, size: 16, color: Colors.red),
+                      label: const Text('Đặt lại', style: TextStyle(color: Colors.red, fontSize: 12)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
 
               // Product Grid
               _filteredProducts.isEmpty
@@ -375,7 +565,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         crossAxisCount: 2,
                         mainAxisSpacing: 16,
                         crossAxisSpacing: 16,
-                        childAspectRatio: 0.52, // Tăng chiều cao thẻ
+                        childAspectRatio: 0.46, // Đủ chiều cao cho thẻ chi tiết nguồn gốc và độ tươi
                       ),
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
@@ -418,6 +608,322 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
+  Widget _buildQuickTag(String tag, {bool isHot = false}) {
+    final isSelected = (_searchQuery.toLowerCase() == tag.toLowerCase()) ||
+        (_selectedCategory.toLowerCase() == tag.toLowerCase());
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (tag == 'Trái Cây Nhiệt Đới' || tag == 'Trái Cây Nhập Khẩu') {
+              _selectedCategory = tag;
+              _searchController.clear();
+              _searchQuery = '';
+            } else {
+              _searchController.text = tag;
+              _searchQuery = tag;
+              _selectedCategory = 'Tất cả';
+            }
+          });
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.green
+                : (isHot ? Colors.red.shade50 : Colors.grey.shade100),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.green
+                  : (isHot ? Colors.red.shade300 : Colors.grey.shade300),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isHot) ...[
+                const Icon(Icons.local_fire_department, size: 14, color: Colors.red),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                tag,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: (isSelected || isHot) ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected
+                      ? Colors.white
+                      : (isHot ? Colors.red.shade800 : Colors.black87),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeasonalBannerSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Tiêu đề banner theo mùa
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.wb_sunny_rounded, color: Colors.orange, size: 18),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Banner Trái Cây Theo Mùa',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade300),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.eco, size: 12, color: Colors.green),
+                  SizedBox(width: 4),
+                  Text(
+                    'TƯƠI MỖI NGÀY',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Carousel Slider
+        SizedBox(
+          height: 175,
+          child: PageView.builder(
+            controller: _bannerController,
+            itemCount: _seasonalBanners.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentBannerIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final banner = _seasonalBanners[index];
+              final List<Color> gradientColors = banner['gradient'] as List<Color>;
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedCategory = banner['category'];
+                    _searchController.clear();
+                    _searchQuery = '';
+                  });
+                  SnackbarHelper.showSuccess(
+                    context,
+                    'Đang xem: ${banner['category']} theo mùa',
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      children: [
+                        // Background image
+                        Positioned.fill(
+                          child: Image.network(
+                            banner['image'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: gradientColors,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Dark gradient overlay for readability
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.black.withOpacity(0.75),
+                                  Colors.black.withOpacity(0.35),
+                                  Colors.transparent,
+                                ],
+                                begin: Alignment.bottomLeft,
+                                end: Alignment.topRight,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Content
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      banner['badge'],
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      banner['tag'],
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    banner['title'],
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(color: Colors.black54, blurRadius: 4),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    banner['subtitle'],
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Khám phá ngay',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            SizedBox(width: 4),
+                                            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Indicator dots
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_seasonalBanners.length, (index) {
+            final isActive = _currentBannerIndex == index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: isActive ? 20 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.green : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCategoryChip(String label, String imageUrl) {
     final isSelected = _selectedCategory == label;
     return GestureDetector(
@@ -429,25 +935,36 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       },
       child: Container(
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-        width: 90,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        width: 100,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected ? Border.all(color: const Color(0xFF1976D2), width: 2) : Border.all(color: Colors.transparent, width: 2),
+          color: isSelected ? Colors.green.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? Colors.green : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClipOval(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(25),
               child: Image.network(
                 imageUrl,
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
-                  width: 50,
-                  height: 50,
+                  width: 48,
+                  height: 48,
                   color: Colors.grey[200],
                   child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 24),
                 ),
@@ -458,11 +975,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: isSelected ? const Color(0xFF1976D2) : Colors.black87,
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.green.shade800 : Colors.black87,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
               maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -553,44 +1071,98 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Origin
-                  const Text(
-                    'MỸ',
-                    style: TextStyle(color: Colors.grey, fontSize: 10, letterSpacing: 1),
+                  Row(
+                    children: [
+                      Icon(Icons.public, size: 11, color: Colors.blue.shade700),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          product.origin.toUpperCase(),
+                          style: TextStyle(
+                            color: Colors.blue.shade800,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
+
+                  // Freshness badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.eco, size: 10, color: Colors.green),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            product.freshness,
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
                   // Title
                   Text(
                     product.name,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w400,
-                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
                       color: Colors.black87,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  // Prices
+                  const SizedBox(height: 6),
+
+                  // Prices with unit
                   Row(
                     children: [
                       Text(
-                        FormatHelper.formatPrice(product.price), // Current price
+                        FormatHelper.formatPrice(product.price),
                         style: const TextStyle(
                           color: Colors.red,
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Text(
-                        FormatHelper.formatPrice(oldPrice), // Old price
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          decoration: TextDecoration.lineThrough,
-                          fontSize: 10,
+                        ' / ${product.unit}',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    FormatHelper.formatPrice(oldPrice),
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      decoration: TextDecoration.lineThrough,
+                      fontSize: 10,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   // Rating
