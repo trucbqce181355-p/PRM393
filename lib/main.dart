@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'config/supabase_config.dart';
 import 'screens/auth/auth_wrapper.dart';
+import 'screens/auth/auth_session_guard.dart';
 import 'screens/admin/admin_vouchers_screen.dart';
 import 'screens/user/user_vouchers_screen.dart';
 import 'screens/user/checkout_screen.dart';
@@ -22,7 +25,7 @@ void main() async {
   await StorageService.init();
 
   // 2. Khởi tạo & nạp phiên đăng nhập từ Local Storage (Token)
-  await AuthService.initSession();
+  unawaited(AuthService.initSession());
   if (SupabaseConfig.isConfigured) {
     final prefs = await SharedPreferences.getInstance();
     final projectRef = Uri.parse(SupabaseConfig.url).host.split('.').first;
@@ -48,12 +51,19 @@ void main() async {
   runApp(const MyApp());
 }
 
+final _authNavigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _authNavigatorKey,
+      builder: (context, child) => AuthSessionGuard(
+        navigatorKey: _authNavigatorKey,
+        child: child ?? const SizedBox.shrink(),
+      ),
       title: 'Fruitopia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

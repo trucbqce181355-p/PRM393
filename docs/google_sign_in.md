@@ -33,8 +33,9 @@ bị khóa không được cấp phiên.
 
 Account Google có hồ sơ đầy đủ vào trang chủ. Account mới được chuyển đến
 màn hình hoàn tất hồ sơ theo google_profile_completion.md (UC 7). Supabase JWT và token
-Fruitopia chỉ ở bộ nhớ; Supabase dùng EmptyLocalStorage. UC 8 lưu/khôi phục phiên
-Fruitopia an toàn. Không ghi JWT ra log/file hoặc lưu trong SharedPreferences.
+Fruitopia được lưu/khôi phục an toàn theo auth_sessions.md (UC 8); Supabase JWT
+chỉ ở bộ nhớ qua EmptyLocalStorage. Không ghi JWT ra log/file hoặc lưu dạng rõ
+trong SharedPreferences.
 Luồng SĐT và hồ sơ giả lập cũ đã được gỡ khỏi UI/auth service theo nghiệp vụ
 Google hoặc email. Phiên local legacy được bỏ qua/xóa khi khởi động để không
 vào app bằng token giả đã lưu trước đây. Các nơi gọi của member UI vẫn có helper

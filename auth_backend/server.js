@@ -63,7 +63,7 @@ async function main() {
   app.get('/api/auth/session', (req, res, next) => {
     const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     service.authenticate(token)
-      .then(user => res.json({ success: true, data: publicUser(user) })).catch(next);
+      .then(user => res.json({ success: true, data: { ...publicUser(user), expiresAt: user.sessionExpiresAt } })).catch(next);
   });
   app.patch('/api/auth/profile', (req, res, next) => {
     const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');

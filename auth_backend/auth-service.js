@@ -139,7 +139,7 @@ class AuthService {
     const user = await this.store.findId(session.userId);
     if (!user) throw new AuthError(401, 'Tài khoản không tồn tại.');
     this.requireActive(user);
-    return { ...user, sessionProvider: session.provider };
+    return { ...user, sessionProvider: session.provider, sessionExpiresAt: session.expiresAt.toISOString() };
   }
   async saveProfile(user, { name, phone, password }) {
     validateProfile(name, phone);

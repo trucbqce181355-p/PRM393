@@ -17,9 +17,9 @@ thích; UC này không triển khai API đặt lại mật khẩu.
 
 UI mở form email mặc định và có đường dẫn đăng ký. AuthService.login gọi API,
 lấy role từ server để điều hướng user/admin; currentUser của phiên backend lấy
-hồ sơ từ server, không lấy định danh từ cache email. Phiên mới chỉ giữ trong bộ
-nhớ, không ghi token backend xuống SharedPreferences. UC 8 sẽ lưu an toàn và
-khôi phục phiên; đóng app ở giai đoạn này cần đăng nhập lại bằng email.
+hồ sơ từ server, không lấy định danh từ cache email. UC 8 bổ sung lưu an toàn và
+khôi phục phiên theo auth_sessions.md; không ghi token backend dạng rõ xuống
+SharedPreferences. Hồ sơ/quyền khi khôi phục vẫn lấy từ backend.
 
 Ở UC 4, luồng Google/điện thoại legacy còn giữ cho bước chuyển tiếp; UC 5 thay
 Google bằng OAuth thật và gỡ đăng nhập điện thoại theo nghiệp vụ. Hồ sơ

@@ -41,4 +41,4 @@ khác (409), quay lại đăng nhập để lấy hồ sơ mới. Controller đ�
 mật khẩu được xóa sau khi lưu thành công; không ghi mật khẩu ra log/local.
 
 Sau khi thành công, đi đến trang chủ với ID và hồ sơ do backend trả về.
-Lưu/khôi phục phiên an toàn thuộc UC 8; thu hồi phiên thuộc UC 9.
+Lưu/khôi phục phiên an toàn theo auth_sessions.md (UC 8); thu hồi phiên thuộc UC 9.

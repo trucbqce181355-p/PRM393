@@ -13,6 +13,8 @@ class BackendAuthException extends StateError {
 
 class AuthApiService {
   static http.Client client = http.Client();
+  static Future<void> Function(String token, BackendAuthException error)?
+  onSessionRejected;
   static String get baseUrl {
     const configured = String.fromEnvironment('AUTH_API_URL');
     if (configured.isNotEmpty) return configured;
@@ -48,7 +50,14 @@ class AuthApiService {
         );
       }
       return Map<String, dynamic>.from(result['data'] as Map);
-    } on BackendAuthException {
+    } on BackendAuthException catch (error) {
+      if (token != null &&
+          RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token) &&
+          (error.status == 401 ||
+              (error.status == 403 &&
+                  (path == '/session' || path == '/profile')))) {
+        await onSessionRejected?.call(token, error);
+      }
       rethrow;
     } on TimeoutException {
       throw BackendAuthException(
