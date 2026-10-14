@@ -5,6 +5,7 @@ import 'screens/user/user_vouchers_screen.dart';
 import 'screens/user/checkout_screen.dart';
 import 'screens/user/user_support_chat_screen.dart';
 import 'screens/user/user_returns_screen.dart';
+import 'flow_09_shipper_delivery.dart';
 import 'services/auth_service.dart';
 import 'services/data_service.dart';
 import 'services/mongodb_service.dart';
@@ -20,8 +21,12 @@ void main() async {
   await AuthService.initSession();
 
   // 3. Kết nối MongoDB và load cache
-  await MongoDBService.connect();
-  await DataService.init();
+  try {
+    await MongoDBService.connect();
+    await DataService.init();
+  } catch (error) {
+    debugPrint('MongoDB connection error at startup: $error');
+  }
 
   runApp(const MyApp());
 }
@@ -42,21 +47,23 @@ class MyApp extends StatelessWidget {
       // BƯỚC 1: AuthWrapper kiểm tra Token local để mở UserHomeScreen hoặc LoginScreen
       home: const AuthWrapper(),
       routes: {
-        '/dev4': (context) => const Dev4NavigationScreen(),
+        '/dev-hub': (context) => const DevNavigationHubScreen(),
+        '/dev4': (context) => const DevNavigationHubScreen(),
+        '/shipper': (context) => const ShipperOrdersScreen(),
       },
     );
   }
 }
 
-class Dev4NavigationScreen extends StatelessWidget {
-  const Dev4NavigationScreen({super.key});
+class DevNavigationHubScreen extends StatelessWidget {
+  const DevNavigationHubScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Dev 4: Voucher & Chat Hỗ Trợ', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Fruitopia - Navigation Hub', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         centerTitle: true,
@@ -118,6 +125,22 @@ class Dev4NavigationScreen extends StatelessWidget {
             icon: Icons.assignment_return_outlined,
             color: Colors.teal,
             destination: const UserReturnsScreen(),
+          ),
+          const SizedBox(height: 24),
+          _buildFlowHeader(
+            '9. Flow Giao hàng Shipper',
+            'Nhận đơn hàng -> Cập nhật trạng thái giao hàng -> Chụp ảnh xác nhận',
+            Icons.delivery_dining,
+            Colors.indigo,
+          ),
+          const SizedBox(height: 8),
+          _buildActionCard(
+            context,
+            title: 'Giao hàng Shipper',
+            subtitle: 'Màn hình shipper xử lý đơn hàng và cập nhật tiến độ',
+            icon: Icons.local_shipping_outlined,
+            color: Colors.indigo,
+            destination: const ShipperOrdersScreen(),
           ),
         ],
       ),
