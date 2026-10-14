@@ -19,7 +19,9 @@ class DataService {
     // Tải Vouchers
     final vouchersData = _box.get('vouchers');
     if (vouchersData != null) {
-      vouchers = (vouchersData as List).map((e) => Voucher.fromJson(Map<String, dynamic>.from(e))).toList();
+      vouchers = (vouchersData as List)
+          .map((e) => Voucher.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     } else {
       vouchers = [
         Voucher(
@@ -50,7 +52,9 @@ class DataService {
         }).toList();
         await _saveVouchers();
       }
-    } catch (_) {}
+    } catch (e) {
+      // Bỏ qua nếu lỗi kết nối MongoDB (sử dụng dữ liệu offline từ Hive)
+    }
   }
 
   static Future<void> _saveVouchers() async {
@@ -72,6 +76,8 @@ class DataService {
         "isActive": voucher.isActive,
         "created_at": DateTime.now().toIso8601String()
       });
-    } catch (_) {}
+    } catch (e) {
+      // Bỏ qua nếu lỗi kết nối MongoDB
+    }
   }
 }
