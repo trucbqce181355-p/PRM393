@@ -9,7 +9,7 @@ import 'storage_service.dart';
 import 'auth_api_service.dart';
 import 'email_otp_service.dart';
 
-enum GoogleSignInStatus { waiting, verifying, success, error }
+enum GoogleSignInStatus { waiting, verifying, linkRequired, success, error }
 
 class AuthService {
   static bool _isLoggedIn = false;
@@ -19,6 +19,8 @@ class AuthService {
   static Future<void>? _googleExchange;
   static bool _googleRequested = false;
   static int _googleGeneration = 0;
+  static bool _googleLinkRequired = false;
+  static bool get googleLinkRequired => _googleLinkRequired;
   static String? googleError;
   static final googleStatus = ValueNotifier(GoogleSignInStatus.waiting);
   static String get role => isBackendSession ? _backendRole : 'customer';
@@ -68,7 +70,9 @@ class AuthService {
             if (!_googleRequested) return;
             googleError =
                 'Không thể hoàn tất đăng nhập Google. Vui lòng thử lại.';
-            googleStatus.value = GoogleSignInStatus.error;
+            googleStatus.value = _googleLinkRequired
+                ? GoogleSignInStatus.linkRequired
+                : GoogleSignInStatus.error;
           },
         );
   }
@@ -80,6 +84,7 @@ class AuthService {
     listenGoogleAuth();
     _googleGeneration++;
     _googleRequested = true;
+    _googleLinkRequired = false;
     googleError = null;
     googleStatus.value = GoogleSignInStatus.waiting;
     try {
@@ -99,23 +104,36 @@ class AuthService {
   static void cancelGoogleSignIn() {
     _googleRequested = false;
     _googleGeneration++;
+    _googleLinkRequired = false;
     googleError = null;
     googleStatus.value = GoogleSignInStatus.waiting;
   }
 
   static Future<void> retryGoogleSignIn() async {
+    if (_googleLinkRequired) return;
+    await _runGoogleExchange();
+  }
+
+  static Future<void> linkExistingGoogleAccount(String password) async {
+    if (!_googleRequested || !_googleLinkRequired || password.isEmpty) return;
+    await _runGoogleExchange(password: password);
+  }
+
+  static Future<void> _runGoogleExchange({String? password}) async {
     if (!_googleRequested) return;
+    final generation = _googleGeneration;
     if (_googleExchange != null) {
       final previous = _googleExchange;
       await previous;
       if (_googleRequested &&
+          generation == _googleGeneration &&
           googleStatus.value == GoogleSignInStatus.waiting) {
         if (identical(_googleExchange, previous)) _googleExchange = null;
-        await retryGoogleSignIn();
+        await _runGoogleExchange(password: password);
       }
       return;
     }
-    final exchange = _exchangeGoogle();
+    final exchange = _exchangeGoogle(password: password);
     _googleExchange = exchange;
     try {
       await exchange;
@@ -124,7 +142,7 @@ class AuthService {
     }
   }
 
-  static Future<void> _exchangeGoogle() async {
+  static Future<void> _exchangeGoogle({String? password}) async {
     final generation = _googleGeneration;
     googleError = null;
     googleStatus.value = GoogleSignInStatus.verifying;
@@ -137,19 +155,27 @@ class AuthService {
         'POST',
         '/google',
         token: token,
+        body: password == null ? null : {'password': password},
       );
       if (!_googleRequested || generation != _googleGeneration) return;
       if (!await _acceptBackendSession(data, googleGeneration: generation)) {
         return;
       }
       _googleRequested = false;
+      _googleLinkRequired = false;
       googleStatus.value = GoogleSignInStatus.success;
     } catch (error) {
       if (!_googleRequested || generation != _googleGeneration) return;
       googleError = error is StateError
           ? error.message
           : 'Không thể xác minh đăng nhập Google.';
-      googleStatus.value = GoogleSignInStatus.error;
+      if (error is BackendAuthException &&
+          error.code == 'account_link_required') {
+        _googleLinkRequired = true;
+      }
+      googleStatus.value = _googleLinkRequired
+          ? GoogleSignInStatus.linkRequired
+          : GoogleSignInStatus.error;
     }
   }
 

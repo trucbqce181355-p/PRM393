@@ -57,6 +57,18 @@ class MongoStore {
     try { await this.users().insertOne(user); return user; }
     catch (error) { if (error.code === 11000) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.'); throw error; }
   }
+  async linkGoogle(id, uid) {
+    try {
+      const user = await this.users().findOneAndUpdate({ id, identityActive: true,
+        $or: [{ supabaseUserId: { $exists: false } }, { supabaseUserId: uid }] },
+      { $set: { supabaseUserId: uid, emailVerified: true } }, { returnDocument: 'after' });
+      if (!user) throw new AuthError(409, 'Tài khoản đã liên kết với danh tính Google khác.');
+      return user;
+    } catch (error) {
+      if (error.code === 11000) throw new AuthError(409, 'Danh tính Google đã được liên kết.');
+      throw error;
+    }
+  }
   async limit(key, seconds, maximum, now) {
     const bucket = `${key}:${Math.floor(now.getTime() / (seconds * 1000))}`;
     const record = await this.db.collection('auth_limits').findOneAndUpdate({ _id: bucket },

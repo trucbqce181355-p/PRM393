@@ -26,8 +26,8 @@ Google user mới có ID c_<UUID> riêng, supabaseUserId liên kết tới Googl
 và emailNormalized; unique index chặn tạo trùng khi có nhiều callback. Google
 user đã liên kết giữ nguyên ID, dữ liệu đơn hàng và thông tin tích lũy.
 
-UC 5 chặn email đã có account nhưng chưa liên kết (409 account_link_required),
-không tự tạo bản ghi trùng; liên kết được bổ sung ở UC 6. Không tạo/nâng quyền
+UC 6 liên kết email đã có account theo chính sách trong google_account_linking.md,
+không tạo bản ghi users trùng. Không tạo/nâng quyền
 admin theo email Google; role lấy từ account đã liên kết trên server. Tài khoản
 bị khóa không được cấp phiên.
 

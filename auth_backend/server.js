@@ -57,7 +57,7 @@ async function main() {
   });
   app.post('/api/auth/google', (req, res, next) => {
     const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
-    service.google(token, req.ip)
+    service.google(token, req.ip, req.body?.password)
       .then(data => res.json({ success: true, data })).catch(next);
   });
   app.get('/api/auth/session', (req, res, next) => {

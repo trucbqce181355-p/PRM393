@@ -73,7 +73,7 @@ class AuthService {
     }
     return this.issueSession(user);
   }
-  async google(accessToken, ip = 'unknown') {
+  async google(accessToken, ip = 'unknown', password) {
     if (typeof accessToken !== 'string' || !accessToken || accessToken.length > 16384) {
       throw new AuthError(401, 'Thiếu token Google hợp lệ.');
     }
@@ -87,23 +87,41 @@ class AuthService {
     const email = normalizeEmail(identity.email);
     let user = await this.store.findGoogle(identity.id);
     if (!user) {
-      if (await this.store.findEmail(email)) {
-        throw new AuthError(409, 'Email này đã có tài khoản. Vui lòng đăng nhập bằng email và mật khẩu.',
-          'account_link_required');
-      }
-      try {
-        user = await this.store.createUser({ id: `c_${randomUUID()}`, email, emailNormalized: email,
-          emailVerified: true, supabaseUserId: identity.id, identityActive: true,
-          name: '', phone: '', role: 'customer', isActive: true, totalOrders: 0,
-          totalSpent: 0, memberTier: 'Đồng', created_at: this.now().toISOString() });
-      } catch (error) {
-        if (error.status !== 409) throw error;
-        user = await this.store.findGoogle(identity.id);
-        if (!user) throw error;
+      user = await this.store.findEmail(email);
+      if (user) {
+        this.requireActive(user);
+        // Privileged identities must not be linked based only on matching email.
+        if (user.role === 'admin') throw new AuthError(403, 'Tài khoản quản trị cần đăng nhập bằng phương thức đã được cấp.');
+        await this.authorizeGoogleLink(user, identity, password);
+        user = await this.store.linkGoogle(user.id, identity.id);
+      } else {
+        try {
+          user = await this.store.createUser({ id: `c_${randomUUID()}`, email, emailNormalized: email,
+            emailVerified: true, supabaseUserId: identity.id, identityActive: true,
+            name: '', phone: '', role: 'customer', isActive: true, totalOrders: 0,
+            totalSpent: 0, memberTier: 'Đồng', created_at: this.now().toISOString() });
+        } catch (error) {
+          if (error.status !== 409) throw error;
+          // Another callback/registration won the unique-index race. Preserve that ID.
+          user = await this.store.findEmail(email);
+          if (!user || user.role === 'admin') throw error;
+          this.requireActive(user);
+          await this.authorizeGoogleLink(user, identity, password);
+          user = await this.store.linkGoogle(user.id, identity.id);
+        }
       }
     }
     this.requireActive(user);
     return this.issueSession(user, 'google');
+  }
+  async authorizeGoogleLink(user, identity, password) {
+    if (user.emailVerified === true || user.supabaseUserId === identity.id) return;
+    if (!password) throw new AuthError(409,
+      'Nhập mật khẩu tài khoản cũ để liên kết Google.', 'account_link_required');
+    if (!await verifyPassword(password, user)) throw new AuthError(401, 'Mật khẩu tài khoản cũ không chính xác.');
+    if (!(user.password_hash ?? '').startsWith('scrypt$')) {
+      await this.store.upgradePassword(user.id, await hashPassword(password.trim()));
+    }
   }
   requireActive(user) {
     if (user.isActive === false) throw new AuthError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ CSKH.');
