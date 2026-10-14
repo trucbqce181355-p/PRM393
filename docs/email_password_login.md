@@ -21,7 +21,8 @@ hồ sơ từ server, không lấy định danh từ cache email. Phiên mới c
 nhớ, không ghi token backend xuống SharedPreferences. UC 8 sẽ lưu an toàn và
 khôi phục phiên; đóng app ở giai đoạn này cần đăng nhập lại bằng email.
 
-Luồng Google/điện thoại legacy của dev còn được giữ cho bước chuyển tiếp. Hồ sơ
+Ở UC 4, luồng Google/điện thoại legacy còn giữ cho bước chuyển tiếp; UC 5 thay
+Google bằng OAuth thật và gỡ đăng nhập điện thoại theo nghiệp vụ. Hồ sơ
 của phiên backend không được sửa bằng màn hình legacy ghi trực tiếp mật khẩu vào
 MongoDB; cập nhật qua API sẽ được bổ sung trong bước hồ sơ. Code đơn hàng, sản phẩm,
 voucher và hỗ trợ không thay đổi trong commit này.

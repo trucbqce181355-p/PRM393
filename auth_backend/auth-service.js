@@ -2,8 +2,8 @@ const { randomInt, randomUUID } = require('node:crypto');
 const { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, verifyPassword, publicUser } = require('./security');
 
 class AuthService {
-  constructor({ store, sendEmail, now = () => new Date(), config = {} }) {
-    this.store = store; this.sendEmail = sendEmail; this.now = now;
+  constructor({ store, sendEmail, verifyGoogle, now = () => new Date(), config = {} }) {
+    this.store = store; this.sendEmail = sendEmail; this.verifyGoogle = verifyGoogle; this.now = now;
     this.config = { otpTtl: 300, attempts: 5, resend: 60, sessionTtl: 604800, ...config };
   }
   async requestOtp(emailValue, ip) {
@@ -72,6 +72,38 @@ class AuthService {
       await this.store.upgradePassword(user.id, await hashPassword(password.trim()));
     }
     return this.issueSession(user);
+  }
+  async google(accessToken, ip = 'unknown') {
+    if (typeof accessToken !== 'string' || !accessToken || accessToken.length > 16384) {
+      throw new AuthError(401, 'Thiếu token Google hợp lệ.');
+    }
+    await this.store.limit(`google-ip:${digest(ip)}`, 900, 30, this.now());
+    const identity = await this.verifyGoogle(accessToken);
+    if (!identity.id || !identity.email_confirmed_at ||
+        !identity.identities?.some(item => item.provider === 'google')) {
+      throw new AuthError(401, 'Tài khoản Google chưa được xác minh.');
+    }
+    await this.store.limit(`google-uid:${digest(identity.id)}`, 900, 10, this.now());
+    const email = normalizeEmail(identity.email);
+    let user = await this.store.findGoogle(identity.id);
+    if (!user) {
+      if (await this.store.findEmail(email)) {
+        throw new AuthError(409, 'Email này đã có tài khoản. Vui lòng đăng nhập bằng email và mật khẩu.',
+          'account_link_required');
+      }
+      try {
+        user = await this.store.createUser({ id: `c_${randomUUID()}`, email, emailNormalized: email,
+          emailVerified: true, supabaseUserId: identity.id, identityActive: true,
+          name: '', phone: '', role: 'customer', isActive: true, totalOrders: 0,
+          totalSpent: 0, memberTier: 'Đồng', created_at: this.now().toISOString() });
+      } catch (error) {
+        if (error.status !== 409) throw error;
+        user = await this.store.findGoogle(identity.id);
+        if (!user) throw error;
+      }
+    }
+    this.requireActive(user);
+    return this.issueSession(user, 'google');
   }
   requireActive(user) {
     if (user.isActive === false) throw new AuthError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ CSKH.');

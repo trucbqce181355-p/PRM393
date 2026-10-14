@@ -4,9 +4,7 @@ import '../../services/auth_service.dart';
 import '../user/user_home_screen.dart';
 import 'login_screen.dart';
 
-/// Bước 1: Mở app -> Kiểm tra xem Token phiên đăng nhập đã có ở Local chưa.
-/// - Nếu đã có Token: Vào thẳng UserHomeScreen
-/// - Nếu chưa có Token: Vào LoginScreen (Chọn Google hoặc SĐT)
+/// Routes using the accepted backend identity; persistent restoration is added in UC 8.
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 

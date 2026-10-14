@@ -1,220 +1,172 @@
-import 'dart:math';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../config/supabase_config.dart';
 import '../models/customer.dart';
-import 'data_service.dart';
-import 'mongodb_service.dart';
 import 'storage_service.dart';
 import 'auth_api_service.dart';
 import 'email_otp_service.dart';
 
+enum GoogleSignInStatus { waiting, verifying, success, error }
+
 class AuthService {
   static bool _isLoggedIn = false;
   static Customer? _backendCustomer;
+  static String _backendRole = 'customer';
+  static StreamSubscription<AuthState>? _googleSubscription;
+  static Future<void>? _googleExchange;
+  static bool _googleRequested = false;
+  static int _googleGeneration = 0;
+  static String? googleError;
+  static final googleStatus = ValueNotifier(GoogleSignInStatus.waiting);
+  static String get role => isBackendSession ? _backendRole : 'customer';
+  static bool get hasCompletedProfile =>
+      _backendCustomer?.name.trim().isNotEmpty == true &&
+      _backendCustomer?.phone.trim().isNotEmpty == true;
   static String? _token;
   static String? _userName;
   static String? _userEmail;
   static String? _userPhone;
-  static String? _expectedOtp;
-  static String? _pendingPhone;
-  static String? _pendingEmail;
 
   static bool get isLoggedIn => _isLoggedIn;
-  static bool get isBackendSession => _backendCustomer != null &&
+  static bool get isBackendSession =>
+      _backendCustomer != null &&
       RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(_token ?? '');
   static String? get token => _token;
-  static String? get userName => _userName;
+  static String? get userName =>
+      _userName?.trim().isNotEmpty == true ? _userName : null;
   static String? get userEmail => _userEmail;
   static String? get userPhone => _userPhone;
-  static String? get pendingPhone => _pendingPhone;
-  static String? get pendingEmail => _pendingEmail;
 
-  static Customer? get currentUser {
-    if (_isLoggedIn && isBackendSession) return _backendCustomer;
-    if (!_isLoggedIn) return null;
-    try {
-      if (_userEmail != null && _userEmail!.isNotEmpty) {
-        return DataService.customers.firstWhere((c) => c.email == _userEmail);
-      }
-      if (_userPhone != null && _userPhone!.isNotEmpty) {
-        return DataService.customers.firstWhere((c) => c.phone == _userPhone);
-      }
-    } catch (_) {}
-    return null;
-  }
+  static Customer? get currentUser =>
+      _isLoggedIn && isBackendSession ? _backendCustomer : null;
 
-  // ========================================================
-  // --- BƯỚC 1: KHỞI TẠO & PHỤC HỒI PHIÊN TỪ LOCAL STORAGE ---
-  // ========================================================
+  // Current backend sessions are memory-only; secure restoration is added in UC 8.
   static Future<void> initSession() async {
+    await StorageService.clearAuthSession();
     _backendCustomer = null;
-    final localToken = StorageService.getAuthToken();
-    final localSession = StorageService.getUserSession();
-
-    if (localToken != null && localToken.isNotEmpty && localSession != null) {
-      _token = localToken;
-      _userName = localSession['name'] as String?;
-      _userEmail = localSession['email'] as String?;
-      _userPhone = localSession['phone'] as String?;
-      _isLoggedIn = true;
-    } else {
-      _isLoggedIn = false;
-      _token = null;
-      _userName = null;
-      _userEmail = null;
-      _userPhone = null;
-    }
+    _token = null;
+    _userName = null;
+    _userEmail = null;
+    _userPhone = null;
+    _isLoggedIn = false;
   }
 
-  // ========================================================
-  // --- BƯỚC 2A: ĐĂNG NHẬP BẰNG GOOGLE ---
-  // ========================================================
-  static Future<Map<String, dynamic>> loginWithGoogle() async {
-    await Future.delayed(const Duration(milliseconds: 900));
+  static void listenGoogleAuth() {
+    _googleSubscription ??= Supabase.instance.client.auth.onAuthStateChange
+        .listen(
+          (event) {
+            if (_googleRequested &&
+                event.event == AuthChangeEvent.signedIn &&
+                event.session != null) {
+              unawaited(retryGoogleSignIn());
+            }
+          },
+          onError: (Object error) {
+            if (!_googleRequested) return;
+            googleError =
+                'Không thể hoàn tất đăng nhập Google. Vui lòng thử lại.';
+            googleStatus.value = GoogleSignInStatus.error;
+          },
+        );
+  }
 
-    // Mock thông tin tài khoản Google được chọn
-    const googleEmail = 'huytg.fpt@gmail.com';
-    const googleName = 'Trần Gia Huy';
-
-    // Kiểm tra xem User đã tồn tại trong hệ thống chưa
-    Customer? existingCustomer;
+  static Future<bool> loginWithGoogle() async {
+    if (!SupabaseConfig.isConfigured) {
+      throw StateError('Chưa cấu hình đăng nhập Google.');
+    }
+    listenGoogleAuth();
+    _googleGeneration++;
+    _googleRequested = true;
+    googleError = null;
+    googleStatus.value = GoogleSignInStatus.waiting;
     try {
-      existingCustomer = DataService.customers.firstWhere((c) => c.email == googleEmail);
+      final opened = await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.example.traicay://login-callback',
+        queryParams: const {'prompt': 'select_account'},
+      );
+      if (!opened) cancelGoogleSignIn();
+      return opened;
     } catch (_) {
-      existingCustomer = null;
-    }
-
-    if (existingCustomer != null) {
-      // Đã có tài khoản -> Đăng nhập & lưu token local ngay
-      _token = 'jwt_google_${DateTime.now().millisecondsSinceEpoch}';
-      _userName = existingCustomer.name;
-      _userEmail = existingCustomer.email;
-      _userPhone = existingCustomer.phone;
-      _isLoggedIn = true;
-
-      await StorageService.saveAuthToken(_token!);
-      await StorageService.saveUserSession({
-        'id': existingCustomer.id,
-        'name': existingCustomer.name,
-        'email': existingCustomer.email,
-        'phone': existingCustomer.phone,
-        'loginMethod': 'google',
-      });
-
-      return {
-        'isNewUser': false,
-        'name': existingCustomer.name,
-        'email': existingCustomer.email,
-        'phone': existingCustomer.phone,
-      };
-    } else {
-      // User mới -> cần điền/xác nhận thông tin cá nhân
-      _pendingEmail = googleEmail;
-      return {
-        'isNewUser': true,
-        'name': googleName,
-        'email': googleEmail,
-        'phone': '',
-      };
+      cancelGoogleSignIn();
+      rethrow;
     }
   }
 
-  // ========================================================
-  // --- BƯỚC 2B: ĐĂNG NHẬP BẰNG SỐ ĐIỆN THOẠI (GỬI OTP) ---
-  // ========================================================
-  static Future<String> sendPhoneOtp(String phone) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    _pendingPhone = phone;
-    final random = Random();
-    // Tạo mã OTP 6 chữ số ngẫu nhiên
-    _expectedOtp = (100000 + random.nextInt(900000)).toString();
-
-    return _expectedOtp!;
+  static void cancelGoogleSignIn() {
+    _googleRequested = false;
+    _googleGeneration++;
+    googleError = null;
+    googleStatus.value = GoogleSignInStatus.waiting;
   }
 
-  // ========================================================
-  // --- BƯỚC 3: XÁC MINH OTP ---
-  // ========================================================
-  static Future<bool> verifyOTP(String otp) => verifyOtp(otp);
-
-  static Future<bool> verifyOtp(String enteredOtp) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    // Cho phép mã ngẫu nhiên vừa tạo hoặc mã fallback tiện lợi '123456'
-    final isValid = (enteredOtp == _expectedOtp) || (enteredOtp == '123456');
-    return isValid;
-  }
-
-  // ========================================================
-  // --- BƯỚC 4 & 5: ĐIỀN HỒ SƠ & LƯU TOKEN LOCAL ---
-  // ========================================================
-  static Future<void> completeProfile({
-    required String name,
-    required String email,
-    String? phone,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 700));
-
-    final effectivePhone = phone ?? _pendingPhone ?? '';
-    final newId = 'c${DateTime.now().millisecondsSinceEpoch}';
-
-    final newCustomer = Customer(
-      id: newId,
-      name: name,
-      email: email,
-      phone: effectivePhone,
-      totalSpent: 0.0,
-      totalOrders: 0,
-      isActive: true,
-      memberTier: 'Đồng',
-    );
-
-    // Lưu vào DataService (Hive local database)
-    await DataService.addCustomer(newCustomer);
-
-    // Lưu vào MongoDB Cloud
+  static Future<void> retryGoogleSignIn() async {
+    if (!_googleRequested) return;
+    if (_googleExchange != null) {
+      final previous = _googleExchange;
+      await previous;
+      if (_googleRequested &&
+          googleStatus.value == GoogleSignInStatus.waiting) {
+        if (identical(_googleExchange, previous)) _googleExchange = null;
+        await retryGoogleSignIn();
+      }
+      return;
+    }
+    final exchange = _exchangeGoogle();
+    _googleExchange = exchange;
     try {
-      var usersCollection = MongoDBService.getCollection("users");
-      await usersCollection.insertOne({
-        "id": newId,
-        "name": name,
-        "email": email,
-        "phone": effectivePhone,
-        "password": "none",
-        "role": "customer",
-        "authMethod": effectivePhone.isNotEmpty ? "phone_otp" : "google",
-        "created_at": DateTime.now().toIso8601String(),
-      });
-    } catch (_) {}
-
-    // BƯỚC 5: Sinh Token JWT và Lưu phiên xuống SharedPreferences
-    _token = 'jwt_token_${DateTime.now().millisecondsSinceEpoch}';
-    _userName = name;
-    _userEmail = email;
-    _userPhone = effectivePhone;
-    _isLoggedIn = true;
-
-    await StorageService.saveAuthToken(_token!);
-    await StorageService.saveUserSession({
-      'id': newId,
-      'name': name,
-      'email': email,
-      'phone': effectivePhone,
-    });
+      await exchange;
+    } finally {
+      if (identical(_googleExchange, exchange)) _googleExchange = null;
+    }
   }
 
-  // ========================================================
-  // --- ĐĂNG XUẤT (XÓA TOKEN & SESSION) ---
-  // ========================================================
+  static Future<void> _exchangeGoogle() async {
+    final generation = _googleGeneration;
+    googleError = null;
+    googleStatus.value = GoogleSignInStatus.verifying;
+    try {
+      final token = Supabase.instance.client.auth.currentSession?.accessToken;
+      if (token == null) {
+        throw StateError('Phiên Google đã hết hạn. Vui lòng đăng nhập lại.');
+      }
+      final data = await AuthApiService.request(
+        'POST',
+        '/google',
+        token: token,
+      );
+      if (!_googleRequested || generation != _googleGeneration) return;
+      if (!await _acceptBackendSession(data, googleGeneration: generation)) {
+        return;
+      }
+      _googleRequested = false;
+      googleStatus.value = GoogleSignInStatus.success;
+    } catch (error) {
+      if (!_googleRequested || generation != _googleGeneration) return;
+      googleError = error is StateError
+          ? error.message
+          : 'Không thể xác minh đăng nhập Google.';
+      googleStatus.value = GoogleSignInStatus.error;
+    }
+  }
+
+  static Future<bool> verifyOTP(String otp) => EmailOtpService.verifyOtp(otp);
+
   static Future<void> logout() async {
+    cancelGoogleSignIn();
     _backendCustomer = null;
     _isLoggedIn = false;
     _token = null;
     _userName = null;
     _userEmail = null;
     _userPhone = null;
-    _pendingPhone = null;
-    _pendingEmail = null;
-    _expectedOtp = null;
     await StorageService.clearAuthSession();
+    if (_googleSubscription != null) {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    }
   }
 
   // ========================================================
@@ -222,8 +174,24 @@ class AuthService {
   // ========================================================
   /// Email/password authentication is authoritative on the backend.
   static Future<String> login(String email, String password) async {
-    final data = await AuthApiService.request('POST', '/login',
-      body: {'email': email.trim(), 'password': password});
+    cancelGoogleSignIn();
+    final data = await AuthApiService.request(
+      'POST',
+      '/login',
+      body: {'email': email.trim(), 'password': password},
+    );
+    if (_googleSubscription != null &&
+        Supabase.instance.client.auth.currentUser != null) {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    }
+    await _acceptBackendSession(data);
+    return _backendRole;
+  }
+
+  static Future<bool> _acceptBackendSession(
+    Map<String, dynamic> data, {
+    int? googleGeneration,
+  }) async {
     final token = data['token'] as String;
     final profile = Map<String, dynamic>.from(data['customer'] as Map);
     final customer = Customer.fromJson(profile);
@@ -232,23 +200,24 @@ class AuthService {
     }
     // Remove an older legacy identity. Backend sessions stay in memory until UC 8.
     await StorageService.clearAuthSession();
+    if (googleGeneration != null &&
+        (googleGeneration != _googleGeneration || !_googleRequested)) {
+      return false;
+    }
     _backendCustomer = customer;
     _token = token;
     _userName = customer.name;
     _userEmail = customer.email;
     _userPhone = customer.phone;
-    _pendingPhone = null;
-    _pendingEmail = null;
-    _expectedOtp = null;
     _isLoggedIn = true;
-    return profile['role'] == 'admin' ? 'admin' : 'customer';
+    _backendRole = profile['role'] == 'admin' ? 'admin' : 'customer';
+    return true;
   }
 
   // Compatibility for existing legacy callers; SMTP credentials stay on the server.
   static Future<String> loginWithEmail(String targetEmail) async {
     try {
       await EmailOtpService.sendOtp(targetEmail);
-      _pendingEmail = targetEmail.trim().toLowerCase();
       return '';
     } on StateError catch (error) {
       return error.message;
@@ -257,11 +226,21 @@ class AuthService {
     }
   }
 
-  static Future<void> registerCustomer(String name, String phone, String password) async {
-    await completeProfile(name: name, email: _pendingEmail ?? '$phone@fruitopia.vn', phone: phone);
-  }
-
+  // Compatibility for member UI; profile updates require the protected API.
   static Future<void> saveProfile(String name, String email) async {
-    await completeProfile(name: name, email: email);
+    if (!isBackendSession) throw StateError('Không tìm thấy phiên đăng nhập.');
+    if (email.trim().toLowerCase() != currentUser?.email.trim().toLowerCase()) {
+      throw StateError('Không thay đổi email trong bước cập nhật hồ sơ.');
+    }
+    final data = await AuthApiService.request(
+      'PATCH',
+      '/profile',
+      token: _token,
+      body: {'name': name.trim(), 'phone': currentUser?.phone ?? ''},
+    );
+    _backendCustomer = Customer.fromJson(data);
+    _userName = _backendCustomer!.name;
+    _userEmail = _backendCustomer!.email;
+    _userPhone = _backendCustomer!.phone;
   }
 }

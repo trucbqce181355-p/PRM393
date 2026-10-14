@@ -33,6 +33,10 @@ async function initializeStore(db) {
   await db.collection('users').createIndex({ id: 1 }, {
     unique: true, partialFilterExpression: { identityActive: true }, name: 'auth_id_unique',
   });
+  await db.collection('users').createIndex({ supabaseUserId: 1 }, {
+    unique: true, partialFilterExpression: { supabaseUserId: { $type: 'string' }, identityActive: true },
+    name: 'auth_supabase_uid_unique',
+  });
   for (const collection of ['auth_sessions', 'auth_challenges', 'auth_limits']) {
     await db.collection(collection).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   }
@@ -42,6 +46,7 @@ class MongoStore {
   constructor(db) { this.db = db; }
   users() { return this.db.collection('users'); }
   findEmail(email) { return this.users().findOne({ emailNormalized: email, identityActive: true }); }
+  findGoogle(uid) { return this.users().findOne({ supabaseUserId: uid, identityActive: true }); }
   findId(id) { return this.users().findOne({ id, identityActive: true }); }
   async upgradePassword(id, hash) {
     await this.users().updateOne({ id, identityActive: true }, {
