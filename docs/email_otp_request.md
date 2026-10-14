@@ -16,7 +16,7 @@ Không đưa credentials vào Flutter hoặc Git. Chạy bằng run.bat/cấu h�
 - Kiểm tra email cũ chưa có emailNormalized; không sửa users hoặc dữ liệu đơn hàng.
 - Chặn submit đồng thời; timer/controller được dispose khi rời màn hình.
 
-Commit này hoàn thành bước yêu cầu/gửi lại OTP. Màn hình OTP hiện hiển thị email
-và nút gửi lại; nhập/xác minh OTP và giới hạn thử thuộc UC 2. Luồng auth cũ ở các
+UC 1 hoàn thành bước yêu cầu/gửi lại OTP. Nhập/xác minh OTP và giới hạn thử
+đã được bổ sung trong [UC 2](email_otp_verification.md). Luồng auth cũ ở các
 màn hình khác vẫn thuộc nhánh gốc, sẽ được thay thế trong các commit tiếp theo.
 EmailOtpService giữ challenge để bước xác minh tiếp theo dùng đúng challenge mới.

@@ -30,7 +30,8 @@ async function main() {
       await smtp.sendMail({ from: { name: 'Fruitopia OTP', address: process.env.SMTP_USERNAME },
         to: email, subject: 'Mã xác thực OTP Fruitopia',
         text: `Mã OTP của bạn: ${otp}. Mã có hiệu lực ${Math.ceil(ttl / 60)} phút. Không chia sẻ mã này.` });
-    }, config: { otpTtl: positiveInt('OTP_TTL_SECONDS', 300), resend: positiveInt('OTP_RESEND_SECONDS', 60) },
+    }, config: { otpTtl: positiveInt('OTP_TTL_SECONDS', 300),
+      attempts: positiveInt('OTP_MAX_ATTEMPTS', 5), resend: positiveInt('OTP_RESEND_SECONDS', 60) },
   });
 
   const app = express();
@@ -39,6 +40,10 @@ async function main() {
   app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   app.post('/api/auth/otp/request', (req, res, next) => {
     service.requestOtp(req.body.email, req.ip)
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/otp/verify', (req, res, next) => {
+    service.verifyOtp(req.body.challengeId, req.body.otp)
       .then(data => res.json({ success: true, data })).catch(next);
   });
   app.get('/api/health', async (req, res) => {
@@ -55,7 +60,7 @@ async function main() {
     const status = error.status ?? 503;
     if (status >= 500) console.error('[Auth backend]', req.method, req.path, error.name, error.code ?? 'service_error');
     res.status(status).json({ success: false, message: error.status ? error.message
-      : 'Không thể gửi OTP. Vui lòng thử lại sau.' });
+      : 'Không thể gửi hoặc xác minh OTP. Vui lòng thử lại sau.' });
   });
 
   const server = app.listen(Number(process.env.PORT || 5001), process.env.HOST || '127.0.0.1', () => {

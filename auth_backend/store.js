@@ -41,5 +41,16 @@ class MongoStore {
     await this.db.collection('auth_challenges').updateOne({ _id: id }, { $set: { state: 'sent' } });
   }
   async removeChallenge(id) { await this.db.collection('auth_challenges').deleteOne({ _id: id }); }
+  async attemptChallenge(id, now, maxAttempts) {
+    return this.db.collection('auth_challenges').findOneAndUpdate({ _id: id, state: 'sent',
+      expiresAt: { $gt: now }, attempts: { $lt: maxAttempts } },
+    { $inc: { attempts: 1 } }, { returnDocument: 'after' });
+  }
+  async verifyChallenge(id, hash, proofHash, now) {
+    return this.db.collection('auth_challenges').findOneAndUpdate({ _id: id, state: 'sent',
+      otpHash: hash, expiresAt: { $gt: now } },
+    { $set: { state: 'verified', proofHash, expiresAt: new Date(now.getTime() + 600000) },
+      $unset: { otpHash: '' } }, { returnDocument: 'after' });
+  }
 }
 module.exports = { MongoStore, initializeStore };

@@ -1,10 +1,10 @@
 const { randomInt } = require('node:crypto');
-const { AuthError, digest, secret, normalizeEmail } = require('./security');
+const { AuthError, digest, secret, equal, normalizeEmail } = require('./security');
 
 class AuthService {
   constructor({ store, sendEmail, now = () => new Date(), config = {} }) {
     this.store = store; this.sendEmail = sendEmail; this.now = now;
-    this.config = { otpTtl: 300, resend: 60, ...config };
+    this.config = { otpTtl: 300, attempts: 5, resend: 60, ...config };
   }
   async requestOtp(emailValue, ip) {
     const email = normalizeEmail(emailValue), now = this.now();
@@ -23,6 +23,23 @@ class AuthService {
       throw error;
     }
     return { challengeId: id, expiresIn: this.config.otpTtl, resendAfter: this.config.resend };
+  }
+  async verifyOtp(challengeId, otp) {
+    if (typeof challengeId !== 'string' || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
+      throw new AuthError(400, 'Mã OTP không hợp lệ.');
+    }
+    const now = this.now();
+    const challenge = await this.store.attemptChallenge(challengeId, now, this.config.attempts);
+    if (!challenge) throw new AuthError(400, 'OTP đã hết hạn, đã dùng hoặc vượt quá số lần thử. Vui lòng gửi lại.');
+    const hash = digest(`${challengeId}:${otp}`);
+    if (!equal(hash, challenge.otpHash)) {
+      throw new AuthError(400, `Mã OTP không chính xác. Còn ${this.config.attempts - challenge.attempts} lần thử.`);
+    }
+    const proof = secret();
+    if (!await this.store.verifyChallenge(challengeId, hash, digest(proof), now)) {
+      throw new AuthError(400, 'OTP đã được sử dụng.');
+    }
+    return { registrationToken: proof, email: challenge.email };
   }
 }
 module.exports = { AuthService };
