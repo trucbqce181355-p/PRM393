@@ -4,6 +4,7 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/review.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -13,6 +14,7 @@ class DataService {
   static List<Voucher> vouchers = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
+  static List<Review> reviews = [];
 
   static late Box _box;
 
@@ -118,6 +120,30 @@ class DataService {
     ),
   ];
 
+  static List<Voucher> get defaultVouchers => [
+    Voucher(
+      code: 'WELCOME10',
+      description: 'Giảm 10.000₫ cho đơn hàng đầu tiên từ 100.000₫',
+      discountAmount: 10000,
+      minPurchase: 100000,
+      isActive: true,
+    ),
+    Voucher(
+      code: 'FREESHIP20',
+      description: 'Miễn phí vận chuyển 20.000₫ cho đơn từ 150.000₫',
+      discountAmount: 20000,
+      minPurchase: 150000,
+      isActive: true,
+    ),
+    Voucher(
+      code: 'FRUIT50K',
+      description: 'Giảm 50.000₫ cho đơn hàng trái cây từ 300.000₫',
+      discountAmount: 50000,
+      minPurchase: 300000,
+      isActive: true,
+    ),
+  ];
+
   static void _loadData() {
     // Tải Products
     final productsData = _box.get('products');
@@ -134,10 +160,10 @@ class DataService {
 
     // Tải Vouchers
     final vouchersData = _box.get('vouchers');
-    if (vouchersData != null) {
-      vouchers = (vouchersData as List).map((e) => Voucher.fromJson(Map<String, dynamic>.from(e))).toList();
+    if (vouchersData != null && vouchersData is List && vouchersData.isNotEmpty) {
+      vouchers = vouchersData.map((e) => Voucher.fromJson(Map<String, dynamic>.from(e))).toList();
     } else {
-      vouchers = [];
+      vouchers = List.from(defaultVouchers);
       _saveVouchers();
     }
     
@@ -159,8 +185,27 @@ class DataService {
       _saveCategories();
     }
 
-    // Tạm thời Orders khởi tạo rỗng
-    orders = [];
+    // Tải Orders từ local cache (chỉ đơn hàng thực tế, loại bỏ dữ liệu mẫu)
+    final ordersData = _box.get('orders');
+    if (ordersData != null && ordersData is List) {
+      orders = ordersData
+          .map((e) => Order.fromJson(Map<String, dynamic>.from(e)))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+    } else {
+      orders = [];
+    }
+
+    // Tải Reviews từ local cache (chỉ đánh giá người dùng thật, loại bỏ dữ liệu ảo)
+    final reviewsData = _box.get('reviews');
+    if (reviewsData != null && reviewsData is List) {
+      reviews = reviewsData
+          .map((e) => Review.fromJson(Map<String, dynamic>.from(e)))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+    } else {
+      reviews = [];
+    }
   }
 
   static Future<void> _syncFromMongoDB() async {
@@ -214,16 +259,33 @@ class DataService {
       
       var colVouchers = MongoDBService.getCollection("vouchers");
       var remoteVouchers = await colVouchers.find().toList();
-      vouchers = remoteVouchers.map((e) {
-        return Voucher(
-          code: e['code']?.toString() ?? '',
-          description: e['description']?.toString() ?? '',
-          discountAmount: (e['discount_percent'] as num?)?.toDouble() ?? 0.0,
-          minPurchase: (e['min_order_value'] as num?)?.toDouble() ?? 0.0,
-          isActive: e['isActive'] ?? true,
-        );
-      }).toList();
-      await _saveVouchers();
+      if (remoteVouchers.isEmpty && vouchers.isNotEmpty) {
+        for (var v in vouchers) {
+          await colVouchers.insertOne({
+            "code": v.code,
+            "description": v.description,
+            "discount_percent": v.discountAmount,
+            "discountAmount": v.discountAmount,
+            "min_order_value": v.minPurchase,
+            "minPurchase": v.minPurchase,
+            "isActive": v.isActive,
+            "created_at": DateTime.now().toIso8601String()
+          });
+        }
+        remoteVouchers = await colVouchers.find().toList();
+      }
+      if (remoteVouchers.isNotEmpty) {
+        vouchers = remoteVouchers.map((e) {
+          return Voucher(
+            code: e['code']?.toString() ?? '',
+            description: e['description']?.toString() ?? '',
+            discountAmount: (e['discountAmount'] as num?)?.toDouble() ?? (e['discount_percent'] as num?)?.toDouble() ?? 0.0,
+            minPurchase: (e['minPurchase'] as num?)?.toDouble() ?? (e['min_order_value'] as num?)?.toDouble() ?? 0.0,
+            isActive: e['isActive'] ?? true,
+          );
+        }).toList();
+        await _saveVouchers();
+      }
 
       var colCategories = MongoDBService.getCollection("categories");
       var remoteCategories = await colCategories.find().toList();
@@ -240,6 +302,34 @@ class DataService {
       }
       categories = remoteCategories.map((e) => Category.fromJson(e)).toList();
       await _saveCategories();
+
+      // Đồng bộ đơn hàng thực tế từ MongoDB traicay_db
+      var colOrders = MongoDBService.getCollection("orders");
+      var remoteOrders = await colOrders.find().toList();
+      orders = remoteOrders
+          .map((e) => Order.fromJson(e))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+      orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveOrders();
+      print("Đã đồng bộ ${orders.length} đơn hàng từ MongoDB traicay_db");
+
+      // Đồng bộ đánh giá thực tế từ MongoDB traicay_db (loại bỏ dữ liệu ảo)
+      var colReviews = MongoDBService.getCollection("reviews");
+      try {
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Nguyễn Văn A'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Trần Thị B'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Lê Văn C'));
+      } catch (_) {}
+
+      var remoteReviews = await colReviews.find().toList();
+      reviews = remoteReviews
+          .map((e) => Review.fromJson(e))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveReviews();
+      print("Đã đồng bộ ${reviews.length} đánh giá thực tế từ MongoDB traicay_db");
 
     } catch (e) {
       print("MongoDB Sync Error: $e");
@@ -260,6 +350,14 @@ class DataService {
 
   static Future<void> _saveVouchers() async {
     await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
+  }
+
+  static Future<void> _saveOrders() async {
+    await _box.put('orders', orders.map((e) => e.toJson()).toList());
+  }
+
+  static Future<void> _saveReviews() async {
+    await _box.put('reviews', reviews.map((e) => e.toJson()).toList());
   }
 
   // --- API Methods ---
@@ -366,7 +464,13 @@ class DataService {
   }
 
   static Future<void> addVoucher(Voucher voucher) async {
-    vouchers.add(voucher);
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
+    if (index != -1) {
+      await updateVoucher(vouchers[index].code, voucher);
+      return;
+    }
+
+    vouchers.insert(0, voucher);
     await _saveVouchers();
 
     try {
@@ -374,13 +478,72 @@ class DataService {
       await col.insertOne({
         "code": voucher.code,
         "description": voucher.description,
-        "discount_percent": voucher.discountAmount, // reusing fields for simplicity
+        "discount_percent": voucher.discountAmount,
+        "discountAmount": voucher.discountAmount,
         "min_order_value": voucher.minPurchase,
+        "minPurchase": voucher.minPurchase,
         "isActive": voucher.isActive,
         "created_at": DateTime.now().toIso8601String()
       });
     } catch (e) {
       print("MongoDB Error (addVoucher): $e");
+    }
+  }
+
+  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == oldCode.toUpperCase());
+    if (index != -1) {
+      vouchers[index] = updatedVoucher;
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', oldCode),
+          mongo.modify
+              .set('code', updatedVoucher.code)
+              .set('description', updatedVoucher.description)
+              .set('discountAmount', updatedVoucher.discountAmount)
+              .set('discount_percent', updatedVoucher.discountAmount)
+              .set('minPurchase', updatedVoucher.minPurchase)
+              .set('min_order_value', updatedVoucher.minPurchase)
+              .set('isActive', updatedVoucher.isActive)
+              .set('updated_at', DateTime.now().toIso8601String())
+        );
+      } catch (e) {
+        print("MongoDB Error (updateVoucher): $e");
+      }
+    }
+  }
+
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    if (index != -1) {
+      final old = vouchers[index];
+      vouchers[index] = old.copyWith(isActive: isActive);
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', code),
+          mongo.modify.set('isActive', isActive)
+        );
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    await _saveVouchers();
+
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
     }
   }
 
@@ -440,6 +603,212 @@ class DataService {
         );
       } catch (e) {
         print("MongoDB Error (updateCustomerProfile): $e");
+      }
+    }
+  }
+
+  // --- ORDERS API (Kết nối trực tiếp MongoDB traicay_db) ---
+  static Future<void> refreshOrders() async {
+    try {
+      var colOrders = MongoDBService.getCollection("orders");
+      var remoteOrders = await colOrders.find().toList();
+      orders = remoteOrders
+          .map((e) => Order.fromJson(e))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+      orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveOrders();
+    } catch (e) {
+      print("MongoDB Refresh Orders Error: $e");
+    }
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders.where((o) => o.customerEmail?.trim().toLowerCase() == target).toList();
+  }
+
+  static Future<void> addOrder(Order order) async {
+    orders.insert(0, order);
+    await _saveOrders();
+
+    try {
+      var col = MongoDBService.getCollection("orders");
+      await col.insertOne(order.toJson());
+      print("Đã lưu đơn hàng #${order.id} vào MongoDB traicay_db");
+    } catch (e) {
+      print("MongoDB Error (addOrder): $e");
+    }
+
+    // Cập nhật số đơn và tổng chi tiêu của khách hàng
+    if (order.customerEmail != null && order.customerEmail!.isNotEmpty) {
+      final cIndex = customers.indexWhere((c) => c.email.toLowerCase() == order.customerEmail!.toLowerCase());
+      if (cIndex != -1) {
+        final c = customers[cIndex];
+        final newSpent = c.totalSpent + order.totalAmount;
+        final newCount = c.totalOrders + 1;
+        final newTier = newSpent >= 2000000 ? 'Vàng' : (newSpent >= 500000 ? 'Bạc' : 'Đồng');
+
+        customers[cIndex] = Customer(
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          password: c.password,
+          totalSpent: newSpent,
+          totalOrders: newCount,
+          memberTier: newTier,
+          isActive: c.isActive,
+        );
+        await _saveCustomers();
+
+        try {
+          var colUsers = MongoDBService.getCollection("users");
+          await colUsers.updateOne(
+            mongo.where.eq('email', c.email),
+            mongo.modify
+                .inc('totalOrders', 1)
+                .inc('totalSpent', order.totalAmount)
+          );
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
+    final index = orders.indexWhere((o) => o.id == orderId);
+    if (index != -1) {
+      orders[index].status = newStatus;
+      await _saveOrders();
+
+      String statusString;
+      switch (newStatus) {
+        case OrderStatus.ready:
+          statusString = 'Đã gói xong';
+          break;
+        case OrderStatus.delivering:
+          statusString = 'Đang giao';
+          break;
+        case OrderStatus.completed:
+          statusString = 'Đã hoàn thành';
+          break;
+        case OrderStatus.cancelled:
+          statusString = 'Đã hủy';
+          break;
+        case OrderStatus.pending:
+          statusString = 'Đang xử lý';
+          break;
+      }
+
+      try {
+        var col = MongoDBService.getCollection("orders");
+        await col.updateOne(
+          mongo.where.eq('id', orderId),
+          mongo.modify.set('status', statusString)
+        );
+      } catch (e) {
+        print("MongoDB Error (updateOrderStatus): $e");
+      }
+    }
+  }
+
+  // --- REVIEWS API (Đánh giá người dùng thật kết nối MongoDB traicay_db) ---
+  static Future<void> refreshReviews() async {
+    try {
+      var colReviews = MongoDBService.getCollection("reviews");
+      try {
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Nguyễn Văn A'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Trần Thị B'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Lê Văn C'));
+      } catch (_) {}
+
+      var remoteReviews = await colReviews.find().toList();
+      reviews = remoteReviews
+          .map((e) => Review.fromJson(e))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveReviews();
+    } catch (e) {
+      print("MongoDB Refresh Reviews Error: $e");
+    }
+  }
+
+  static List<Review> getReviewsForProduct(String productId, [String? productName]) {
+    final pid = productId.trim().toLowerCase();
+    final pname = (productName ?? '').trim().toLowerCase();
+
+    return reviews.where((r) {
+      if (r.userName == 'Nguyễn Văn A' || r.userName == 'Trần Thị B' || r.userName == 'Lê Văn C') {
+        return false;
+      }
+
+      final rPid = r.productId.trim().toLowerCase();
+      final rPname = (r.productName ?? '').trim().toLowerCase();
+
+      // Khớp theo ID sản phẩm
+      if (pid.isNotEmpty && rPid.isNotEmpty && rPid == pid) return true;
+
+      // Khớp theo Tên sản phẩm (VD: Táo Envy New Zealand)
+      if (pname.isNotEmpty && rPname.isNotEmpty) {
+        if (rPname == pname || rPname.contains(pname) || pname.contains(rPname)) {
+          return true;
+        }
+        // Khớp đặc biệt cho nhóm Táo
+        if (pname.contains('táo') && rPname.contains('táo')) {
+          return true;
+        }
+      }
+      return false;
+    }).toList();
+  }
+
+  static Future<void> addReview(Review review) async {
+    reviews.insert(0, review);
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.insertOne(review.toJson());
+      print("Đã lưu đánh giá thực tế của ${review.userName} vào MongoDB traicay_db");
+    } catch (e) {
+      print("MongoDB Error (addReview): $e");
+    }
+
+    // Cập nhật rating trung bình thực tế cho sản phẩm
+    final matchingReviews = getReviewsForProduct(review.productId, review.productName);
+    if (matchingReviews.isNotEmpty) {
+      final avg = matchingReviews.map((r) => r.rating).reduce((a, b) => a + b) / matchingReviews.length;
+      final roundedRating = double.parse(avg.toStringAsFixed(1));
+
+      final pIndex = products.indexWhere((p) => p.id == review.productId || (review.productName != null && p.name == review.productName));
+      if (pIndex != -1) {
+        final p = products[pIndex];
+        products[pIndex] = Product(
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          unit: p.unit,
+          imageUrl: p.imageUrl,
+          stock: p.stock,
+          category: p.category,
+          origin: p.origin,
+          freshness: p.freshness,
+          rating: roundedRating,
+          isActive: p.isActive,
+          isDeleted: p.isDeleted,
+        );
+        await _saveProducts();
+
+        try {
+          var colProducts = MongoDBService.getCollection("products");
+          await colProducts.updateOne(
+            mongo.where.eq('id', p.id),
+            mongo.modify.set('rating', roundedRating)
+          );
+        } catch (_) {}
       }
     }
   }

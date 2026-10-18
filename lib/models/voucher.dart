@@ -15,10 +15,10 @@ class Voucher {
 
   factory Voucher.fromJson(Map<String, dynamic> json) {
     return Voucher(
-      code: json['code'],
-      description: json['description'],
-      discountAmount: json['discountAmount'].toDouble(),
-      minPurchase: json['minPurchase'].toDouble(),
+      code: json['code']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      discountAmount: (json['discountAmount'] ?? json['discount_percent'] ?? 0).toDouble(),
+      minPurchase: (json['minPurchase'] ?? json['min_order_value'] ?? 0).toDouble(),
       isActive: json['isActive'] ?? true,
     );
   }
@@ -31,5 +31,21 @@ class Voucher {
       'minPurchase': minPurchase,
       'isActive': isActive,
     };
+  }
+
+  Voucher copyWith({
+    String? code,
+    String? description,
+    double? discountAmount,
+    double? minPurchase,
+    bool? isActive,
+  }) {
+    return Voucher(
+      code: code ?? this.code,
+      description: description ?? this.description,
+      discountAmount: discountAmount ?? this.discountAmount,
+      minPurchase: minPurchase ?? this.minPurchase,
+      isActive: isActive ?? this.isActive,
+    );
   }
 }

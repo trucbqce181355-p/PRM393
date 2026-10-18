@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/data_service.dart';
 import 'package:flutter/services.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../utils/format_helper.dart';
 
 class UserVouchersScreen extends StatelessWidget {
   const UserVouchersScreen({super.key});
@@ -45,14 +46,31 @@ class UserVouchersScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              voucher.code,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue),
+                            Row(
+                              children: [
+                                Text(
+                                  voucher.code,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.green.shade200),
+                                  ),
+                                  child: Text(
+                                    '-${FormatHelper.formatPrice(voucher.discountAmount)}',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 4),
                             Text(voucher.description, style: TextStyle(color: Colors.grey[700])),
                             const SizedBox(height: 4),
-                            Text('Đơn tối thiểu \$${voucher.minPurchase}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text('Đơn tối thiểu: ${FormatHelper.formatPrice(voucher.minPurchase)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                           ],
                         ),
                       ),

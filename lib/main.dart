@@ -4,10 +4,12 @@ import 'services/storage_service.dart';
 
 import 'services/data_service.dart';
 import 'services/mongodb_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService.init();
+  await AuthService.init();
   await MongoDBService.connect(); // Initialize MongoDB trước để lấy dữ liệu
   await DataService.init(); // Initialize Hive database và load dữ liệu
   runApp(const MyApp());

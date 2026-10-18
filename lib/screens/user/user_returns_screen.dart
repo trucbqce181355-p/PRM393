@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../services/data_service.dart';
+import '../../models/order.dart';
 
-class UserReturnsScreen extends StatelessWidget {
+class UserReturnsScreen extends StatefulWidget {
   const UserReturnsScreen({super.key});
 
   @override
+  State<UserReturnsScreen> createState() => _UserReturnsScreenState();
+}
+
+class _UserReturnsScreenState extends State<UserReturnsScreen> {
+  String? _selectedOrder;
+  String? _selectedReason;
+
+  @override
   Widget build(BuildContext context) {
+    final completedOrders = DataService.getOrdersForCustomer(AuthService.userEmail)
+        .where((o) => o.status == OrderStatus.completed)
+        .toList();
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -33,11 +48,25 @@ class UserReturnsScreen extends StatelessWidget {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   isExpanded: true,
-                  hint: const Text('Chọn mã đơn hàng'),
-                  items: ['#109283 - Đã nhận (1 ngày trước)', '#109150 - Đã nhận (2 ngày trước)']
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  value: _selectedOrder,
+                  hint: Text(
+                    completedOrders.isEmpty
+                        ? 'Bạn chưa có đơn hàng đã hoàn thành để đổi/trả'
+                        : 'Chọn mã đơn hàng',
+                    style: TextStyle(color: completedOrders.isEmpty ? Colors.grey : Colors.black87),
+                  ),
+                  items: completedOrders
+                      .map((o) => DropdownMenuItem(
+                            value: o.id,
+                            child: Text(
+                              'Đơn #${o.id} - ${o.itemsSummary.isNotEmpty ? o.itemsSummary : 'Sản phẩm'}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
                       .toList(),
-                  onChanged: (value) {},
+                  onChanged: completedOrders.isEmpty
+                      ? null
+                      : (value) => setState(() => _selectedOrder = value),
                 ),
               ),
             ),
@@ -57,6 +86,7 @@ class UserReturnsScreen extends StatelessWidget {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   isExpanded: true,
+                  value: _selectedReason,
                   hint: const Text('Chọn lý do'),
                   items: [
                     'Sản phẩm bị dập nát/hư hỏng',
@@ -64,7 +94,7 @@ class UserReturnsScreen extends StatelessWidget {
                     'Sản phẩm không giống mô tả',
                     'Khác'
                   ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                  onChanged: (value) {},
+                  onChanged: (value) => setState(() => _selectedReason = value),
                 ),
               ),
             ),

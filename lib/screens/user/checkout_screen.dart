@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../models/cart_item.dart';
+import '../../models/order.dart';
 import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
 import 'user_home_screen.dart';
+import 'user_addresses_screen.dart';
+import '../auth/login_screen.dart';
 import '../../models/voucher.dart';
 import '../../utils/format_helper.dart';
+
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -22,12 +26,63 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _voucherController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    if (!AuthService.isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !AuthService.isLoggedIn) {
+          SnackbarHelper.showError(context, 'Vui lòng đăng nhập để tiến hành mua hàng!');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen(redirectToCheckout: true)),
+          );
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _voucherController.dispose();
     super.dispose();
   }
 
+  void _promptAddAddress() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const UserAddressesScreen(isSelecting: true)),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   void _processPayment() async {
+    if (!AuthService.isLoggedIn) {
+      SnackbarHelper.showError(context, 'Vui lòng đăng nhập để tiến hành mua hàng!');
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen(redirectToCheckout: true)),
+      ).then((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+
+    final addresses = StorageService.getAddresses();
+    if (addresses.isEmpty) {
+      SnackbarHelper.showError(context, 'Vui lòng thêm địa chỉ giao hàng thì mới có thể đặt hàng!');
+      _promptAddAddress();
+      return;
+    }
+
+    final selectedAddr = addresses.firstWhere((a) => a['isDefault'] == true, orElse: () => addresses.first);
+    final userAddress = selectedAddr['address']?.toString() ?? '';
+    if (userAddress.trim().isEmpty) {
+      SnackbarHelper.showError(context, 'Địa chỉ giao hàng không hợp lệ. Vui lòng thêm lại địa chỉ!');
+      _promptAddAddress();
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     if (_selectedPayment == 'MOMO' || _selectedPayment == 'VNPAY') {
@@ -93,16 +148,62 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _completeOrder() async {
+    if (!AuthService.isLoggedIn) {
+      setState(() => _isProcessing = false);
+      SnackbarHelper.showError(context, 'Vui lòng đăng nhập để tiến hành mua hàng!');
+      return;
+    }
+
+    final addresses = StorageService.getAddresses();
+    if (addresses.isEmpty) {
+      setState(() => _isProcessing = false);
+      SnackbarHelper.showError(context, 'Vui lòng thêm địa chỉ giao hàng thì mới có thể đặt hàng!');
+      _promptAddAddress();
+      return;
+    }
+
+    final selectedAddr = addresses.firstWhere((a) => a['isDefault'] == true, orElse: () => addresses.first);
+    final userAddress = selectedAddr['address']?.toString() ?? '';
+    if (userAddress.trim().isEmpty) {
+      setState(() => _isProcessing = false);
+      SnackbarHelper.showError(context, 'Địa chỉ giao hàng không hợp lệ. Vui lòng thêm lại địa chỉ!');
+      _promptAddAddress();
+      return;
+    }
+
     // Generate order summary string from cart items
     final itemNames = Cart.items.map((i) => '${i.product.name} (x${i.quantity})').join(' + ');
-    
+    final orderId = 'DH${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+    final double finalTotal = (Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0);
+
+    final userPhone = selectedAddr['phone']?.toString() ?? (AuthService.currentUser?.phone ?? '0912345678');
+
+    final order = Order(
+      id: orderId,
+      customerName: AuthService.userName ?? 'Khách hàng',
+      customerEmail: AuthService.userEmail,
+      customerPhone: userPhone,
+      address: userAddress,
+      totalAmount: finalTotal,
+      itemsSummary: itemNames,
+      status: OrderStatus.pending,
+      createdAt: DateTime.now(),
+    );
+
+    // Lưu vào MongoDB traicay_db thông qua DataService
+    await DataService.addOrder(order);
+
+    // Lưu vào StorageService cache cục bộ theo tài khoản
     await StorageService.addOrder({
-      'id': DateTime.now().millisecondsSinceEpoch.toString().substring(7),
+      'id': orderId,
       'status': 'Đang xử lý',
       'items': itemNames,
       'date': 'Vừa xong',
-      'total': FormatHelper.formatPrice((Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0)),
-    });
+      'total': FormatHelper.formatPrice(finalTotal),
+      'customerEmail': AuthService.userEmail,
+      'address': userAddress,
+      'phone': userPhone,
+    }, userEmail: AuthService.userEmail);
 
     if (!mounted) return;
 
@@ -126,10 +227,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Đơn hàng của bạn đang được xử lý và sẽ sớm giao đến bạn.',
+            Text(
+              'Mã đơn hàng: #$orderId\nĐơn hàng đã được lưu vào hệ thống và đang được xử lý.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -173,28 +274,127 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Delivery Info
-              const Text('Thông tin giao hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Text('${AuthService.userName ?? "Khách"} - 0987654321', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Builder(
+                builder: (context) {
+                  final addresses = StorageService.getAddresses();
+                  final bool hasAddress = addresses.isNotEmpty;
+                  final defaultAddr = hasAddress
+                      ? addresses.firstWhere((a) => a['isDefault'] == true, orElse: () => addresses.first)
+                      : null;
+                  final displayName = AuthService.userName ?? "Khách hàng";
+                  final displayPhone = defaultAddr?['phone'] ?? AuthService.currentUser?.phone ?? "0912345678";
+                  final displayAddress = defaultAddr?['address']?.toString() ?? '';
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Thông tin giao hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          TextButton.icon(
+                            onPressed: _promptAddAddress,
+                            icon: Icon(hasAddress ? Icons.edit_location_alt_outlined : Icons.add_location_alt_outlined, size: 16, color: Colors.green),
+                            label: Text(hasAddress ? 'Thay đổi' : 'Thêm địa chỉ', style: const TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (!hasAddress) ...[
+                        InkWell(
+                          onTap: _promptAddAddress,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.amber.shade400, width: 1.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade100,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add_location_alt, color: Colors.orange, size: 28),
+                                ),
+                                const SizedBox(width: 14),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Chưa có địa chỉ giao hàng',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Nhấn vào đây để thêm địa chỉ giao hàng (Bắt buộc để đặt hàng)',
+                                        style: TextStyle(color: Colors.black87, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.orange),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.green.shade200),
+                            boxShadow: [
+                              BoxShadow(color: Colors.grey.withValues(alpha: 0.05), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_on, color: Colors.green),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '$displayName • $displayPhone',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      defaultAddr?['title']?.toString() ?? 'Mặc định',
+                                      style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 32),
+                                child: Text(
+                                  displayAddress,
+                                  style: TextStyle(color: Colors.grey[800], fontSize: 14, height: 1.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Padding(
-                      padding: EdgeInsets.only(left: 32),
-                      child: Text('Số 1, Đại Cồ Việt, Bách Khoa, Hai Bà Trưng, Hà Nội', style: TextStyle(color: Colors.grey)),
-                    ),
-                  ],
-                ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 24),
 
@@ -377,19 +577,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ],
                 ),
               ),
-              SizedBox(
-                width: 150,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isProcessing ? null : _processPayment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: _isProcessing
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Đặt hàng', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
+              Builder(
+                builder: (context) {
+                  final hasAddress = StorageService.getAddresses().isNotEmpty;
+                  return SizedBox(
+                    width: hasAddress ? 150 : 165,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isProcessing ? null : _processPayment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: hasAddress ? Colors.green : Colors.orange,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _isProcessing
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              hasAddress ? 'Đặt hàng' : 'Thêm địa chỉ',
+                              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  );
+                },
               ),
             ],
           ),

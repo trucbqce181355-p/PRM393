@@ -1,7 +1,6 @@
 import '../../utils/snackbar_helper.dart';
 import '../../services/auth_service.dart';
 import 'package:flutter/material.dart';
-import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../auth/forgot_password_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
@@ -190,7 +189,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Xin chào, ${AuthService.userName}! ',
+                    'Xin chào !',
                     style: TextStyle(
                       color: Colors.grey[700],
                       fontSize: 16,
@@ -253,6 +252,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               ),
             )
           ] else ...[
+            if (AuthService.isAdmin)
+              IconButton(
+                tooltip: 'Về trang quản trị',
+                icon: const Icon(Icons.admin_panel_settings_outlined, color: Colors.green),
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(Icons.local_offer_outlined, color: Colors.amber),
               onPressed: () {
@@ -263,17 +273,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
               onPressed: () {},
             ),
-              IconButton(
-                icon: const Icon(Icons.logout, color: Colors.redAccent),
-                onPressed: () {
-                  AuthService.logout();
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                    (route) => false,
-                  );
-                },
-              ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+              onPressed: () {
+                AuthService.logout();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserHomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
           ],
         ],
       ),
@@ -580,30 +590,41 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          if (index == 1) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
-          } else if (index == 2) {
-            if (AuthService.isLoggedIn) {
+          if (AuthService.isAdmin) {
+            if (index == 1) {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const UserProfileScreen())).then((_) => setState(() {}));
-            } else {
-              _showLoginPopover(context);
+            }
+          } else {
+            if (index == 1) {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
+            } else if (index == 2) {
+              if (AuthService.isLoggedIn) {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const UserProfileScreen())).then((_) => setState(() {}));
+              } else {
+                _showLoginPopover(context);
+              }
             }
           }
         },
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(
-            icon: Cart.items.isEmpty 
-              ? const Icon(Icons.shopping_cart)
-              : Badge(
-                  label: Text('${Cart.items.length}'),
-                  backgroundColor: Colors.red,
-                  child: const Icon(Icons.shopping_cart),
+        items: AuthService.isAdmin
+            ? const [
+                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+                BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
+              ]
+            : [
+                const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+                BottomNavigationBarItem(
+                  icon: Cart.items.isEmpty 
+                    ? const Icon(Icons.shopping_cart)
+                    : Badge(
+                        label: Text('${Cart.items.length}'),
+                        backgroundColor: Colors.red,
+                        child: const Icon(Icons.shopping_cart),
+                      ),
+                  label: 'Giỏ hàng',
                 ),
-            label: 'Giỏ hàng',
-          ),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
-        ],
+                const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
+              ],
       ),
     );
   }
@@ -1181,51 +1202,73 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     'Đã bán: 4563',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                  const SizedBox(height: 12),
-                  // Add to Cart Button
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        Cart.addItem(product, 1);
-                      });
-                      SnackbarHelper.showSuccess(context, 'Đã thêm ${product.name} vào giỏ hàng');
-                    },
-                    child: Container(
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.amber, width: 1.5),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Center(
-                              child: Text(
-                                'THÊM VÀO GIỎ',
-                                style: TextStyle(
-                                  color: Color(0xFF001E4C), // Dark blue text
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
+                  if (!AuthService.isAdmin) ...[
+                    const SizedBox(height: 12),
+                    // Add to Cart Button
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          Cart.addItem(product, 1);
+                        });
+                        SnackbarHelper.showSuccess(context, 'Đã thêm ${product.name} vào giỏ hàng');
+                      },
+                      child: Container(
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: Colors.amber, width: 1.5),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Center(
+                                child: Text(
+                                  'THÊM VÀO GIỎ',
+                                  style: TextStyle(
+                                    color: Color(0xFF001E4C), // Dark blue text
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Colors.amber,
-                              shape: BoxShape.circle,
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                color: Colors.amber,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.shopping_bag_outlined, color: Color(0xFF001E4C), size: 18),
+                              ),
                             ),
-                            child: const Center(
-                              child: Icon(Icons.shopping_bag_outlined, color: Color(0xFF001E4C), size: 18),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'XEM CHI TIẾT',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

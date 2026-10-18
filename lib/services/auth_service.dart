@@ -5,16 +5,54 @@ import '../models/customer.dart';
 import 'data_service.dart';
 import 'mongodb_service.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
+
 class AuthService {
   static bool _isLoggedIn = false;
   static String? _token;
   static String? _userName;
   static String? _userEmail;
   static String? _expectedOtp;
+  static String _adminPassword = '123456';
 
   static bool get isLoggedIn => _isLoggedIn;
   static String? get userName => _userName;
   static String? get userEmail => _userEmail;
+  static String get adminPassword => _adminPassword;
+  static bool get isAdmin => _isLoggedIn && (_userName == 'Admin' || _userEmail == 'admin@gmail.com' || _token == 'mock_admin_token');
+
+  static Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _adminPassword = prefs.getString('admin_password') ?? '123456';
+    } catch (e) {
+      _adminPassword = '123456';
+    }
+  }
+
+  static Future<bool> changeAdminPassword(String oldPassword, String newPassword) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (oldPassword != _adminPassword) {
+      return false;
+    }
+    _adminPassword = newPassword;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('admin_password', newPassword);
+    } catch (_) {}
+
+    try {
+      var col = MongoDBService.getCollection("users");
+      await col.updateOne(
+        mongo.where.eq('email', 'admin@gmail.com'),
+        mongo.modify.set('password', newPassword)
+      );
+    } catch (e) {
+      print("MongoDB error changeAdminPassword: $e");
+    }
+    return true;
+  }
 
   static Customer? get currentUser {
     if (!_isLoggedIn || _userEmail == null) return null;
@@ -102,7 +140,6 @@ class AuthService {
   }
 
   static Future<void> saveProfile(String name, String email) async {
-    await Future.delayed(const Duration(seconds: 1));
     _userName = name;
     _userEmail = email;
     _token = 'mock_jwt_token_${DateTime.now().millisecondsSinceEpoch}';
@@ -120,8 +157,9 @@ class AuthService {
   static Future<String> login(String email, String password) async {
     await Future.delayed(const Duration(seconds: 1));
 
-    if (email == 'admin@gmail.com' && password == '123456') {
+    if (email == 'admin@gmail.com' && password == _adminPassword) {
       _userName = 'Admin';
+      _userEmail = 'admin@gmail.com';
       _token = 'mock_admin_token';
       _isLoggedIn = true;
       return 'admin';

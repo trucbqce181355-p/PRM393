@@ -8,7 +8,8 @@ import '../user/user_home_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool redirectToCheckout;
+  const LoginScreen({super.key, this.redirectToCheckout = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -53,12 +54,16 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // Login success
-      AuthService.saveProfile(customer.name, customer.email);
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-        (route) => false,
-      );
+      await AuthService.saveProfile(customer.name, customer.email);
+      if (widget.redirectToCheckout) {
+        Navigator.pop(context, true);
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const UserHomeScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       // firstWhere throws state error if not found
       SnackbarHelper.showError(context, 'Email hoặc mật khẩu không chính xác!');
