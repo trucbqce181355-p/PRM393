@@ -84,9 +84,22 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
                           style: TextStyle(color: isMe ? Colors.white : Colors.black87),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${m.createdAt.hour.toString().padLeft(2, '0')}:${m.createdAt.minute.toString().padLeft(2, '0')}',
-                          style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey.shade600),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${m.createdAt.hour.toString().padLeft(2, '0')}:${m.createdAt.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey.shade600),
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                m.isRead ? Icons.done_all : Icons.done,
+                                size: 14,
+                                color: m.isRead ? Colors.lightBlueAccent : Colors.white70,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     )

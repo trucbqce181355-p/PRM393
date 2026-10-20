@@ -9,6 +9,7 @@ class ChatMessage {
   final String? imageUrl;
   final String? fileAttachment;
   final String? fileName;
+  bool isRead;
 
   ChatMessage({
     required this.id,
@@ -21,6 +22,7 @@ class ChatMessage {
     this.imageUrl,
     this.fileAttachment,
     this.fileName,
+    this.isRead = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class ChatMessage {
       imageUrl: json['imageUrl']?.toString(),
       fileAttachment: json['fileAttachment']?.toString(),
       fileName: json['fileName']?.toString(),
+      isRead: json['isRead'] ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -52,6 +55,7 @@ class ChatMessage {
       'imageUrl': imageUrl,
       'fileAttachment': fileAttachment,
       'fileName': fileName,
+      'isRead': isRead,
     };
   }
 }
