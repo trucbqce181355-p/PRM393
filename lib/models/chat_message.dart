@@ -43,3 +43,23 @@ class ChatMessage {
     };
   }
 }
+
+class ChatConversation {
+  final String conversationId;
+  final String customerName;
+  final String customerEmail;
+  final String lastMessage;
+  final DateTime lastMessageTime;
+  final int unreadCount;
+  final bool isClosed;
+
+  ChatConversation({
+    required this.conversationId,
+    required this.customerName,
+    required this.customerEmail,
+    required this.lastMessage,
+    required this.lastMessageTime,
+    this.unreadCount = 0,
+    this.isClosed = false,
+  });
+}
