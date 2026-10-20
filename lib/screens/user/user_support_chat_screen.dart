@@ -17,6 +17,18 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
   String get _conversationId => AuthService.currentUser?.email ?? 'guest@fruitopia.vn';
   String get _customerName => AuthService.currentUser?.name ?? 'Khách hàng';
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   void _sendMessage() async {
     final text = _msgController.text.trim();
     if (text.isEmpty) return;
@@ -34,6 +46,7 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
     _msgController.clear();
     await DataService.sendChatMessage(msg);
     setState(() {});
+    _scrollToBottom();
   }
 
   @override
