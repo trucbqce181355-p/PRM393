@@ -4,6 +4,7 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/chat_message.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -11,6 +12,8 @@ class DataService {
   static List<Product> products = [];
   static List<Order> orders = [];
   static List<Voucher> vouchers = [];
+  static List<ChatMessage> chatMessages = [];
+  static Set<String> closedConversations = {};
   static List<Customer> customers = [];
   static List<Category> categories = [];
 
@@ -147,6 +150,24 @@ class DataService {
 
   static Future<void> _saveProducts() async {
     await _box.put('products', products.map((e) => e.toJson()).toList());
+  }
+
+  static Future<void> sendChatMessage(ChatMessage message) async {
+    chatMessages.add(message);
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.insertOne(message.toJson());
+    } catch (e) {
+      print("MongoDB Error (sendChatMessage): $e");
+    }
+  }
+
+  static Future<void> _saveChatMessages() async {
+    try {
+      final jsonList = chatMessages.map((m) => m.toJson()).toList();
+      await _box.put('chat_messages', jsonList);
+    } catch (_) {}
   }
 
   static Future<void> _saveVouchers() async {
