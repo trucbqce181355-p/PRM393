@@ -7,6 +7,7 @@ class ChatMessage {
   final String message;
   final DateTime createdAt;
   final String? imageUrl;
+  bool isRead;
 
   ChatMessage({
     required this.id,
@@ -17,6 +18,7 @@ class ChatMessage {
     required this.message,
     required this.createdAt,
     this.imageUrl,
+    this.isRead = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,7 @@ class ChatMessage {
       senderRole: json['senderRole']?.toString() ?? 'user',
       message: json['message']?.toString() ?? '',
       imageUrl: json['imageUrl']?.toString(),
+      isRead: json['isRead'] ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -44,6 +47,7 @@ class ChatMessage {
       'message': message,
       'createdAt': createdAt.toIso8601String(),
       'imageUrl': imageUrl,
+      'isRead': isRead,
     };
   }
 }
