@@ -5,6 +5,7 @@ import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
 import '../models/chat_message.dart';
+import '../models/return_request.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -14,6 +15,7 @@ class DataService {
   static List<Voucher> vouchers = [];
   static List<ChatMessage> chatMessages = [];
   static Set<String> closedConversations = {};
+  static List<ReturnRequest> returnRequests = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
 
@@ -434,5 +436,79 @@ class DataService {
         print("MongoDB Error (updateCustomerProfile): $e");
       }
     }
+  }
+
+  // --- QUẢN LÝ YÊU CẦU HỖ TRỢ KHÁCH HÀNG (UC 80) ---
+  static Future<void> _saveReturnRequests() async {
+    try {
+      await _box.put('return_requests', returnRequests.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> addReturnRequest(ReturnRequest req) async {
+    returnRequests.insert(0, req);
+    await _saveReturnRequests();
+
+    try {
+      var col = MongoDBService.getCollection("return_requests");
+      await col.insertOne(req.toJson());
+    } catch (e) {
+      print("MongoDB Error (addReturnRequest): $e");
+    }
+  }
+
+  static Future<void> updateReturnRequest(ReturnRequest updatedReq) async {
+    final index = returnRequests.indexWhere((r) => r.id == updatedReq.id);
+    if (index != -1) {
+      returnRequests[index] = updatedReq;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', updatedReq.id),
+          mongo.modify
+              .set('reason', updatedReq.reason)
+              .set('description', updatedReq.description)
+              .set('imageUrl', updatedReq.imageUrl)
+              .set('updatedAt', updatedReq.updatedAt?.toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> cancelReturnRequest(String requestId) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: 'cancelled',
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', 'cancelled')
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (cancelReturnRequest): $e");
+      }
+    }
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders
+        .where((o) => o.customerEmail?.trim().toLowerCase() == target)
+        .toList();
   }
 }
