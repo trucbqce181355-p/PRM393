@@ -374,6 +374,59 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
     );
   }
 
+  void _confirmDeleteVoucher(Voucher voucher) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 8),
+              Text('Xóa Voucher'),
+            ],
+          ),
+          content: Text.rich(
+            TextSpan(
+              text: 'Bạn có chắc chắn muốn xóa voucher ',
+              children: [
+                TextSpan(
+                  text: voucher.code,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+                const TextSpan(
+                  text: '?\n\nHành động này không thể hoàn tác.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await DataService.deleteVoucher(voucher.code);
+                if (mounted) {
+                  setState(() {});
+                  SnackbarHelper.showSuccess(context, 'Đã xóa voucher ${voucher.code}');
+                }
+              },
+              child: const Text('Xác nhận xóa'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildStatCard(String label, String value, Color color, IconData icon) {
     return Expanded(
@@ -652,6 +705,27 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                                 child: Icon(Icons.copy_rounded, size: 16, color: Colors.grey),
                               ),
                             ),
+                            const Spacer(),
+                            // Active / Inactive Switch
+                            Transform.scale(
+                              scale: 0.85,
+                              child: Switch(
+                                value: voucher.isActive,
+                                activeColor: Colors.green,
+                                onChanged: (val) async {
+                                  await DataService.toggleVoucherStatus(voucher.code, val);
+                                  if (mounted) {
+                                    setState(() {});
+                                    SnackbarHelper.showSuccess(
+                                      context,
+                                      val
+                                          ? 'Đã kích hoạt voucher ${voucher.code}'
+                                          : 'Đã tạm ngưng voucher ${voucher.code}',
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -727,6 +801,17 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                         icon: const Icon(Icons.edit_outlined, size: 16),
                         label: const Text('Sửa', style: TextStyle(fontSize: 13)),
                         onPressed: () => _openVoucherDialog(voucher: voucher),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red.shade700,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Xóa', style: TextStyle(fontSize: 13)),
+                        onPressed: () => _confirmDeleteVoucher(voucher),
                       ),
                     ],
                   ),

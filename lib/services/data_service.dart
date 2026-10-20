@@ -4,6 +4,8 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/chat_message.dart';
+import '../models/return_request.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -11,6 +13,9 @@ class DataService {
   static List<Product> products = [];
   static List<Order> orders = [];
   static List<Voucher> vouchers = [];
+  static List<ChatMessage> chatMessages = [];
+  static Set<String> closedConversations = {};
+  static List<ReturnRequest> returnRequests = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
 
@@ -258,6 +263,69 @@ class DataService {
     await _box.put('products', products.map((e) => e.toJson()).toList());
   }
 
+  static List<ChatConversation> getAllConversations() {
+    final Map<String, List<ChatMessage>> grouped = {};
+    for (var m in chatMessages) {
+      grouped.putIfAbsent(m.conversationId, () => []).add(m);
+    }
+    final List<ChatConversation> list = [];
+    grouped.forEach((convId, msgs) {
+      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final lastMsg = msgs.last;
+      list.add(ChatConversation(
+        conversationId: convId,
+        customerName: msgs.firstWhere((m) => m.senderRole == 'user', orElse: () => lastMsg).senderName,
+        customerEmail: convId,
+        lastMessage: lastMsg.message,
+        lastMessageTime: lastMsg.createdAt,
+        unreadCount: msgs.where((m) => m.senderRole == 'user').length,
+        isClosed: closedConversations.contains(convId.toLowerCase()),
+      ));
+    });
+    list.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    return list;
+  }
+
+  static Future<void> markMessagesAsRead(String conversationId, String readerRole) async {
+    bool updated = false;
+    for (var m in chatMessages) {
+      if (m.conversationId.toLowerCase() == conversationId.toLowerCase() && m.senderRole != readerRole && !m.isRead) {
+        m.isRead = true;
+        updated = true;
+      }
+    }
+    if (updated) {
+      await _saveChatMessages();
+      try {
+        var col = MongoDBService.getCollection("chat_messages");
+        await col.updateMany(
+          mongo.where.eq('conversationId', conversationId).ne('senderRole', readerRole),
+          mongo.modify.set('isRead', true),
+        );
+      } catch (e) {
+        print("MongoDB error markMessagesAsRead: $e");
+      }
+    }
+  }
+
+  static Future<void> sendChatMessage(ChatMessage message) async {
+    chatMessages.add(message);
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.insertOne(message.toJson());
+    } catch (e) {
+      print("MongoDB Error (sendChatMessage): $e");
+    }
+  }
+
+  static Future<void> _saveChatMessages() async {
+    try {
+      final jsonList = chatMessages.map((m) => m.toJson()).toList();
+      await _box.put('chat_messages', jsonList);
+    } catch (_) {}
+  }
+
   static Future<void> _saveVouchers() async {
     await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
   }
@@ -365,6 +433,31 @@ class DataService {
     }
   }
 
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code == code);
+    if (index != -1) {
+      vouchers[index] = vouchers[index].copyWith(isActive: isActive);
+      await _saveVouchers();
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(mongo.where.eq('code', code), mongo.modify.set('isActive', isActive));
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code == code);
+    await _saveVouchers();
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
+    }
+  }
+
   static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
     final index = vouchers.indexWhere((v) => v.code == oldCode);
     if (index != -1) {
@@ -456,5 +549,79 @@ class DataService {
         print("MongoDB Error (updateCustomerProfile): $e");
       }
     }
+  }
+
+  // --- QUẢN LÝ YÊU CẦU HỖ TRỢ KHÁCH HÀNG (UC 80) ---
+  static Future<void> _saveReturnRequests() async {
+    try {
+      await _box.put('return_requests', returnRequests.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> addReturnRequest(ReturnRequest req) async {
+    returnRequests.insert(0, req);
+    await _saveReturnRequests();
+
+    try {
+      var col = MongoDBService.getCollection("return_requests");
+      await col.insertOne(req.toJson());
+    } catch (e) {
+      print("MongoDB Error (addReturnRequest): $e");
+    }
+  }
+
+  static Future<void> updateReturnRequest(ReturnRequest updatedReq) async {
+    final index = returnRequests.indexWhere((r) => r.id == updatedReq.id);
+    if (index != -1) {
+      returnRequests[index] = updatedReq;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', updatedReq.id),
+          mongo.modify
+              .set('reason', updatedReq.reason)
+              .set('description', updatedReq.description)
+              .set('imageUrl', updatedReq.imageUrl)
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> cancelReturnRequest(String requestId) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: 'cancelled',
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', 'cancelled')
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (cancelReturnRequest): $e");
+      }
+    }
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders
+        .where((o) => o.customerEmail?.trim().toLowerCase() == target)
+        .toList();
   }
 }
