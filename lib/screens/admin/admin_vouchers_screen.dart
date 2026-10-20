@@ -705,6 +705,27 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                                 child: Icon(Icons.copy_rounded, size: 16, color: Colors.grey),
                               ),
                             ),
+                            const Spacer(),
+                            // Active / Inactive Switch
+                            Transform.scale(
+                              scale: 0.85,
+                              child: Switch(
+                                value: voucher.isActive,
+                                activeColor: Colors.green,
+                                onChanged: (val) async {
+                                  await DataService.toggleVoucherStatus(voucher.code, val);
+                                  if (mounted) {
+                                    setState(() {});
+                                    SnackbarHelper.showSuccess(
+                                      context,
+                                      val
+                                          ? 'Đã kích hoạt voucher ${voucher.code}'
+                                          : 'Đã tạm ngưng voucher ${voucher.code}',
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 2),
