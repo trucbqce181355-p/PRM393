@@ -38,7 +38,7 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = DataService.chatMessages.where((m) => m.conversationId == _conversationId).toList();
+    final messages = DataService.getMessagesForConversation(_conversationId);
 
     return Scaffold(
       appBar: AppBar(
@@ -63,8 +63,20 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
                       color: isMe ? Colors.green.shade600 : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Text(
-                      m.message,
+                    child: Column(
+                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m.message,
+                          style: TextStyle(color: isMe ? Colors.white : Colors.black87),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${m.createdAt.hour.toString().padLeft(2, '0')}:${m.createdAt.minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey.shade600),
+                        ),
+                      ],
+                    )
                       style: TextStyle(color: isMe ? Colors.white : Colors.black87),
                     ),
                   ),
