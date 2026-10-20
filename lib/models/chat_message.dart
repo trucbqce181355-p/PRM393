@@ -7,6 +7,8 @@ class ChatMessage {
   final String message;
   final DateTime createdAt;
   final String? imageUrl;
+  final String? fileAttachment;
+  final String? fileName;
 
   ChatMessage({
     required this.id,
@@ -17,6 +19,8 @@ class ChatMessage {
     required this.message,
     required this.createdAt,
     this.imageUrl,
+    this.fileAttachment,
+    this.fileName,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,8 @@ class ChatMessage {
       senderRole: json['senderRole']?.toString() ?? 'user',
       message: json['message']?.toString() ?? '',
       imageUrl: json['imageUrl']?.toString(),
+      fileAttachment: json['fileAttachment']?.toString(),
+      fileName: json['fileName']?.toString(),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -44,6 +50,8 @@ class ChatMessage {
       'message': message,
       'createdAt': createdAt.toIso8601String(),
       'imageUrl': imageUrl,
+      'fileAttachment': fileAttachment,
+      'fileName': fileName,
     };
   }
 }
