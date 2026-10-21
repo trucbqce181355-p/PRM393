@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [{
+    "label": "Fruitopia Auth backend",
+    "type": "process",
+    "command": "node",
+    "args": ["${workspaceFolder}/start-auth.js"],
+    "options": {"cwd": "${workspaceFolder}"},
+    "problemMatcher": []
+  }]
+}

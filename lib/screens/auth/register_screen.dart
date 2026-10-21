@@ -1,9 +1,9 @@
 import '../../utils/snackbar_helper.dart';
+
 import 'package:flutter/material.dart';
+
+import '../../services/email_otp_service.dart';
 import 'otp_screen.dart';
-import '../../services/auth_service.dart';
-import '../../services/data_service.dart';
-import '../user/user_home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,120 +16,197 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
 
-  void _onRegisterPressed() async {
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _onSendOtpPressed() async {
+    if (_isLoading) return;
     final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      SnackbarHelper.showError(context, 'Vui lòng nhập Email hợp lệ');
+
+    if (email.isEmpty) {
+      SnackbarHelper.showError(context, 'Vui lòng nhập địa chỉ Email');
       return;
     }
 
-    // Check duplicate email
-    final isDuplicate = DataService.customers.any((c) => c.email == email);
-    if (isDuplicate) {
-      SnackbarHelper.showError(context, 'Email này đã được đăng ký!');
+    if (!email.contains('@') || !email.contains('.')) {
+      SnackbarHelper.showError(context, 'Vui lòng nhập địa chỉ Email hợp lệ');
       return;
     }
 
     setState(() => _isLoading = true);
-    String error = await AuthService.loginWithEmail(email);
-    setState(() => _isLoading = false);
+    try {
+      await EmailOtpService.sendOtp(email);
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    if (error.isNotEmpty) {
-      // Nếu có lỗi, hiện lên màn hình để dễ xem
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Lỗi gửi Email'),
-          content: Text('Không thể gửi mail vì bị Google chặn xác thực (Sai mật khẩu hoặc cần App Password).\n\nChi tiết lỗi:\n$error\n\nMã OTP test (đã in ra console) vẫn hoạt động.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OtpScreen()),
-                );
-              },
-              child: const Text('Tiếp tục nhập OTP Test'),
-            ),
-          ],
-        ),
+      SnackbarHelper.showSuccess(
+        context,
+        'Mã OTP gồm 6 số đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư!',
       );
-      return;
-    }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const OtpScreen()),
-    );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => OtpScreen(email: email)),
+      );
+    } catch (e) {
+      if (mounted) {
+        final message = e is StateError
+            ? e.message
+            : e.toString().replaceFirst('Exception: ', '');
+        SnackbarHelper.showError(context, message);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
+        title: const Text(
+          'Đăng ký tài khoản',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tạo tài khoản mới',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Nhập email để nhận mã OTP đăng ký',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 48),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 24.0,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22.0,
+                    vertical: 30.0,
                   ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onRegisterPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Nhận mã OTP',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Tạo tài khoản mới',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Nhập email của bạn để nhận mã OTP xác thực 6 số',
+                        style: TextStyle(fontSize: 15, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Email input
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Nút Nhận mã OTP
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _onSendOtpPressed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text(
+                                  'Nhận mã OTP',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Chuyển sang Đăng nhập
+                      Center(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              'Đã có tài khoản? ',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text(
+                                'Đăng nhập ngay',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

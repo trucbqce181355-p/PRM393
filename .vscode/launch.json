@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Fruitopia (Windows)",
+            "request": "launch",
+            "type": "dart",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/lib/main.dart",
+            "deviceId": "windows",
+            "preLaunchTask": "Fruitopia Auth backend",
+            "toolArgs": ["--dart-define-from-file=${workspaceFolder}/supabase.env.json"]
+        }
+    ]
+}
