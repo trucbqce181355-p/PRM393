@@ -4,6 +4,7 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/review.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -13,6 +14,7 @@ class DataService {
   static List<Voucher> vouchers = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
+  static List<Review> reviews = [];
 
   static late Box _box;
 
@@ -118,6 +120,30 @@ class DataService {
     ),
   ];
 
+  static List<Voucher> get defaultVouchers => [
+    Voucher(
+      code: 'WELCOME10',
+      description: 'Giảm 10.000₫ cho đơn hàng đầu tiên từ 100.000₫',
+      discountAmount: 10000,
+      minPurchase: 100000,
+      isActive: true,
+    ),
+    Voucher(
+      code: 'FREESHIP20',
+      description: 'Miễn phí vận chuyển 20.000₫ cho đơn từ 150.000₫',
+      discountAmount: 20000,
+      minPurchase: 150000,
+      isActive: true,
+    ),
+    Voucher(
+      code: 'FRUIT50K',
+      description: 'Giảm 50.000₫ cho đơn hàng trái cây từ 300.000₫',
+      discountAmount: 50000,
+      minPurchase: 300000,
+      isActive: true,
+    ),
+  ];
+
   static void _loadData() {
     // Tải Products
     final productsData = _box.get('products');
@@ -134,10 +160,10 @@ class DataService {
 
     // Tải Vouchers
     final vouchersData = _box.get('vouchers');
-    if (vouchersData != null) {
-      vouchers = (vouchersData as List).map((e) => Voucher.fromJson(Map<String, dynamic>.from(e))).toList();
+    if (vouchersData != null && vouchersData is List && vouchersData.isNotEmpty) {
+      vouchers = vouchersData.map((e) => Voucher.fromJson(Map<String, dynamic>.from(e))).toList();
     } else {
-      vouchers = [];
+      vouchers = List.from(defaultVouchers);
       _saveVouchers();
     }
     
@@ -159,8 +185,27 @@ class DataService {
       _saveCategories();
     }
 
-    // Tạm thời Orders khởi tạo rỗng
-    orders = [];
+    // Tải Orders từ local cache (chỉ đơn hàng thực tế, loại bỏ dữ liệu mẫu)
+    final ordersData = _box.get('orders');
+    if (ordersData != null && ordersData is List) {
+      orders = ordersData
+          .map((e) => Order.fromJson(Map<String, dynamic>.from(e)))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+    } else {
+      orders = [];
+    }
+
+    // Tải Reviews từ local cache (chỉ đánh giá người dùng thật, loại bỏ dữ liệu ảo)
+    final reviewsData = _box.get('reviews');
+    if (reviewsData != null && reviewsData is List) {
+      reviews = reviewsData
+          .map((e) => Review.fromJson(Map<String, dynamic>.from(e)))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+    } else {
+      reviews = [];
+    }
   }
 
   static Future<void> _syncFromMongoDB() async {
@@ -214,16 +259,33 @@ class DataService {
       
       var colVouchers = MongoDBService.getCollection("vouchers");
       var remoteVouchers = await colVouchers.find().toList();
-      vouchers = remoteVouchers.map((e) {
-        return Voucher(
-          code: e['code']?.toString() ?? '',
-          description: e['description']?.toString() ?? '',
-          discountAmount: (e['discount_percent'] as num?)?.toDouble() ?? 0.0,
-          minPurchase: (e['min_order_value'] as num?)?.toDouble() ?? 0.0,
-          isActive: e['isActive'] ?? true,
-        );
-      }).toList();
-      await _saveVouchers();
+      if (remoteVouchers.isEmpty && vouchers.isNotEmpty) {
+        for (var v in vouchers) {
+          await colVouchers.insertOne({
+            "code": v.code,
+            "description": v.description,
+            "discount_percent": v.discountAmount,
+            "discountAmount": v.discountAmount,
+            "min_order_value": v.minPurchase,
+            "minPurchase": v.minPurchase,
+            "isActive": v.isActive,
+            "created_at": DateTime.now().toIso8601String()
+          });
+        }
+        remoteVouchers = await colVouchers.find().toList();
+      }
+      if (remoteVouchers.isNotEmpty) {
+        vouchers = remoteVouchers.map((e) {
+          return Voucher(
+            code: e['code']?.toString() ?? '',
+            description: e['description']?.toString() ?? '',
+            discountAmount: (e['discountAmount'] as num?)?.toDouble() ?? (e['discount_percent'] as num?)?.toDouble() ?? 0.0,
+            minPurchase: (e['minPurchase'] as num?)?.toDouble() ?? (e['min_order_value'] as num?)?.toDouble() ?? 0.0,
+            isActive: e['isActive'] ?? true,
+          );
+        }).toList();
+        await _saveVouchers();
+      }
 
       var colCategories = MongoDBService.getCollection("categories");
       var remoteCategories = await colCategories.find().toList();
@@ -241,6 +303,34 @@ class DataService {
       categories = remoteCategories.map((e) => Category.fromJson(e)).toList();
       await _saveCategories();
 
+      // Đồng bộ đơn hàng thực tế từ MongoDB traicay_db
+      var colOrders = MongoDBService.getCollection("orders");
+      var remoteOrders = await colOrders.find().toList();
+      orders = remoteOrders
+          .map((e) => Order.fromJson(e))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+      orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveOrders();
+      print("Đã đồng bộ ${orders.length} đơn hàng từ MongoDB traicay_db");
+
+      // Đồng bộ đánh giá thực tế từ MongoDB traicay_db (loại bỏ dữ liệu ảo)
+      var colReviews = MongoDBService.getCollection("reviews");
+      try {
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Nguyễn Văn A'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Trần Thị B'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Lê Văn C'));
+      } catch (_) {}
+
+      var remoteReviews = await colReviews.find().toList();
+      reviews = remoteReviews
+          .map((e) => Review.fromJson(e))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveReviews();
+      print("Đã đồng bộ ${reviews.length} đánh giá thực tế từ MongoDB traicay_db");
+
     } catch (e) {
       print("MongoDB Sync Error: $e");
     }
@@ -255,11 +345,27 @@ class DataService {
   }
 
   static Future<void> _saveProducts() async {
-    await _box.put('products', products.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('products', products.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   static Future<void> _saveVouchers() async {
-    await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> _saveOrders() async {
+    try {
+      await _box.put('orders', orders.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> _saveReviews() async {
+    try {
+      await _box.put('reviews', reviews.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   // --- API Methods ---
@@ -338,6 +444,125 @@ class DataService {
     }
   }
 
+  // --- Inventory & Stock Methods ---
+  static Future<void> updateProductStock(String id, int newStock) async {
+    final index = products.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      products[index].stock = (newStock < 0) ? 0 : newStock;
+      await _saveProducts();
+      try {
+        var col = MongoDBService.getCollection("products");
+        await col.updateOne(
+          mongo.where.eq('id', id),
+          mongo.modify.set('stock', products[index].stock),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateProductStock): $e");
+      }
+    }
+  }
+
+  static Future<void> adjustProductStock(String id, int delta) async {
+    final index = products.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      final newStock = products[index].stock + delta;
+      products[index].stock = (newStock < 0) ? 0 : newStock;
+      await _saveProducts();
+      try {
+        var col = MongoDBService.getCollection("products");
+        await col.updateOne(
+          mongo.where.eq('id', id),
+          mongo.modify.set('stock', products[index].stock),
+        );
+      } catch (e) {
+        print("MongoDB Error (adjustProductStock): $e");
+      }
+    }
+  }
+
+  // --- Category Methods (Thêm, sửa, xóa danh mục) ---
+  static Future<void> addCategory(Category category) async {
+    categories.add(category);
+    await _saveCategories();
+
+    try {
+      var col = MongoDBService.getCollection("categories");
+      await col.insertOne({
+        "id": category.id,
+        "name": category.name,
+        "imageUrl": category.imageUrl,
+        "created_at": DateTime.now().toIso8601String()
+      });
+    } catch (e) {
+      print("MongoDB Error (addCategory): $e");
+    }
+  }
+
+  static Future<void> updateCategory(Category category, {String? oldName}) async {
+    final index = categories.indexWhere((c) => c.id == category.id);
+    if (index != -1) {
+      final prevName = oldName ?? categories[index].name;
+      categories[index] = category;
+      await _saveCategories();
+
+      // Nếu tên danh mục thay đổi, cập nhật toàn bộ sản phẩm thuộc danh mục cũ
+      if (prevName != category.name) {
+        for (var p in products) {
+          if (p.category == prevName) {
+            p.category = category.name;
+          }
+        }
+        await _saveProducts();
+      }
+
+      try {
+        var col = MongoDBService.getCollection("categories");
+        await col.updateOne(
+          mongo.where.eq('id', category.id),
+          mongo.modify
+              .set('name', category.name)
+              .set('imageUrl', category.imageUrl),
+        );
+
+        if (prevName != category.name) {
+          var colProducts = MongoDBService.getCollection("products");
+          await colProducts.updateMany(
+            mongo.where.eq('category', prevName),
+            mongo.modify.set('category', category.name),
+          );
+        }
+      } catch (e) {
+        print("MongoDB Error (updateCategory): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteCategory(String id, String categoryName) async {
+    categories.removeWhere((c) => c.id == id);
+    await _saveCategories();
+
+    // Chuyển các sản phẩm có danh mục bị xóa về 'Khác'
+    for (var p in products) {
+      if (p.category == categoryName) {
+        p.category = 'Khác';
+      }
+    }
+    await _saveProducts();
+
+    try {
+      var col = MongoDBService.getCollection("categories");
+      await col.deleteOne(mongo.where.eq('id', id));
+
+      var colProducts = MongoDBService.getCollection("products");
+      await colProducts.updateMany(
+        mongo.where.eq('category', categoryName),
+        mongo.modify.set('category', 'Khác'),
+      );
+    } catch (e) {
+      print("MongoDB Error (deleteCategory): $e");
+    }
+  }
+
   static Future<void> addCustomer(Customer customer) async {
     // Avoid duplicate if already exists (AuthService might call this)
     if (!customers.any((c) => c.email == customer.email)) {
@@ -366,7 +591,13 @@ class DataService {
   }
 
   static Future<void> addVoucher(Voucher voucher) async {
-    vouchers.add(voucher);
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
+    if (index != -1) {
+      await updateVoucher(vouchers[index].code, voucher);
+      return;
+    }
+
+    vouchers.insert(0, voucher);
     await _saveVouchers();
 
     try {
@@ -374,13 +605,72 @@ class DataService {
       await col.insertOne({
         "code": voucher.code,
         "description": voucher.description,
-        "discount_percent": voucher.discountAmount, // reusing fields for simplicity
+        "discount_percent": voucher.discountAmount,
+        "discountAmount": voucher.discountAmount,
         "min_order_value": voucher.minPurchase,
+        "minPurchase": voucher.minPurchase,
         "isActive": voucher.isActive,
         "created_at": DateTime.now().toIso8601String()
       });
     } catch (e) {
       print("MongoDB Error (addVoucher): $e");
+    }
+  }
+
+  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == oldCode.toUpperCase());
+    if (index != -1) {
+      vouchers[index] = updatedVoucher;
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', oldCode),
+          mongo.modify
+              .set('code', updatedVoucher.code)
+              .set('description', updatedVoucher.description)
+              .set('discountAmount', updatedVoucher.discountAmount)
+              .set('discount_percent', updatedVoucher.discountAmount)
+              .set('minPurchase', updatedVoucher.minPurchase)
+              .set('min_order_value', updatedVoucher.minPurchase)
+              .set('isActive', updatedVoucher.isActive)
+              .set('updated_at', DateTime.now().toIso8601String())
+        );
+      } catch (e) {
+        print("MongoDB Error (updateVoucher): $e");
+      }
+    }
+  }
+
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    if (index != -1) {
+      final old = vouchers[index];
+      vouchers[index] = old.copyWith(isActive: isActive);
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', code),
+          mongo.modify.set('isActive', isActive)
+        );
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    await _saveVouchers();
+
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
     }
   }
 
@@ -442,5 +732,380 @@ class DataService {
         print("MongoDB Error (updateCustomerProfile): $e");
       }
     }
+  }
+
+  // --- ORDERS API (Kết nối trực tiếp MongoDB traicay_db) ---
+  static Future<void> refreshOrders() async {
+    try {
+      var colOrders = MongoDBService.getCollection("orders");
+      var remoteOrders = await colOrders.find().toList();
+      orders = remoteOrders
+          .map((e) => Order.fromJson(e))
+          .where((o) => o.id != '109283' && o.id != '109280')
+          .toList();
+      orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveOrders();
+    } catch (e) {
+      print("MongoDB Refresh Orders Error: $e");
+    }
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders.where((o) => o.customerEmail?.trim().toLowerCase() == target).toList();
+  }
+
+  static Future<void> addOrder(Order order) async {
+    orders.insert(0, order);
+    await _saveOrders();
+
+    try {
+      var col = MongoDBService.getCollection("orders");
+      await col.insertOne(order.toJson());
+      print("Đã lưu đơn hàng #${order.id} vào MongoDB traicay_db");
+    } catch (e) {
+      print("MongoDB Error (addOrder): $e");
+    }
+
+    // Cập nhật số đơn và tổng chi tiêu của khách hàng
+    if (order.customerEmail != null && order.customerEmail!.isNotEmpty) {
+      final cIndex = customers.indexWhere((c) => c.email.toLowerCase() == order.customerEmail!.toLowerCase());
+      if (cIndex != -1) {
+        final c = customers[cIndex];
+        final newSpent = c.totalSpent + order.totalAmount;
+        final newCount = c.totalOrders + 1;
+        final newTier = newSpent >= 2000000 ? 'Vàng' : (newSpent >= 500000 ? 'Bạc' : 'Đồng');
+
+        customers[cIndex] = Customer(
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          password: c.password,
+          totalSpent: newSpent,
+          totalOrders: newCount,
+          memberTier: newTier,
+          isActive: c.isActive,
+        );
+        await _saveCustomers();
+
+        try {
+          var colUsers = MongoDBService.getCollection("users");
+          await colUsers.updateOne(
+            mongo.where.eq('email', c.email),
+            mongo.modify
+                .inc('totalOrders', 1)
+                .inc('totalSpent', order.totalAmount)
+          );
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Future<void> restoreOrderStock(Order order) async {
+    if (order.itemsSummary.isEmpty) return;
+    final parts = order.itemsSummary.split(' + ');
+    for (var part in parts) {
+      final match = RegExp(r'^(.*?)\s*\(x(\d+)\)$').firstMatch(part.trim());
+      if (match != null) {
+        final name = match.group(1)?.trim() ?? '';
+        final qty = int.tryParse(match.group(2) ?? '0') ?? 0;
+        if (name.isNotEmpty && qty > 0) {
+          final prodIndex = products.indexWhere((p) => p.name.trim().toLowerCase() == name.toLowerCase());
+          if (prodIndex != -1) {
+            await adjustProductStock(products[prodIndex].id, qty);
+          }
+        }
+      }
+    }
+  }
+
+  static Future<void> updateOrderStatus(
+    String orderId,
+    OrderStatus newStatus, {
+    String? cancelReason,
+    String? shipperName,
+    String? shipperPhone,
+  }) async {
+    final index = orders.indexWhere((o) => o.id == orderId);
+    if (index != -1) {
+      final prevStatus = orders[index].status;
+      orders[index].status = newStatus;
+      if (cancelReason != null) orders[index].cancelReason = cancelReason;
+      if (shipperName != null) orders[index].shipperName = shipperName;
+      if (shipperPhone != null) orders[index].shipperPhone = shipperPhone;
+      await _saveOrders();
+
+      // Tự động hoàn lại số lượng tồn kho khi đơn bị hủy / từ chối
+      if (newStatus == OrderStatus.cancelled && prevStatus != OrderStatus.cancelled) {
+        await restoreOrderStock(orders[index]);
+      }
+
+      String statusString;
+      switch (newStatus) {
+        case OrderStatus.ready:
+          statusString = 'Đã gói xong';
+          break;
+        case OrderStatus.delivering:
+          statusString = 'Đang giao';
+          break;
+        case OrderStatus.completed:
+          statusString = 'Đã hoàn thành';
+          break;
+        case OrderStatus.cancelled:
+          statusString = 'Đã hủy';
+          break;
+        case OrderStatus.pending:
+          statusString = 'Đang xử lý';
+          break;
+      }
+
+      try {
+        var col = MongoDBService.getCollection("orders");
+        var modifier = mongo.modify.set('status', statusString);
+        if (cancelReason != null) modifier = modifier.set('cancelReason', cancelReason);
+        if (shipperName != null) modifier = modifier.set('shipperName', shipperName);
+        if (shipperPhone != null) modifier = modifier.set('shipperPhone', shipperPhone);
+
+        await col.updateOne(
+          mongo.where.eq('id', orderId),
+          modifier,
+        );
+      } catch (e) {
+        print("MongoDB Error (updateOrderStatus): $e");
+      }
+    }
+  }
+
+  // --- REVIEWS API (Đánh giá người dùng thật kết nối MongoDB traicay_db) ---
+  static Future<void> refreshReviews() async {
+    try {
+      var colReviews = MongoDBService.getCollection("reviews");
+      try {
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Nguyễn Văn A'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Trần Thị B'));
+        await colReviews.deleteMany(mongo.where.eq('userName', 'Lê Văn C'));
+      } catch (_) {}
+
+      var remoteReviews = await colReviews.find().toList();
+      reviews = remoteReviews
+          .map((e) => Review.fromJson(e))
+          .where((r) => r.userName != 'Nguyễn Văn A' && r.userName != 'Trần Thị B' && r.userName != 'Lê Văn C')
+          .toList();
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      await _saveReviews();
+    } catch (e) {
+      print("MongoDB Refresh Reviews Error: $e");
+    }
+  }
+
+  static List<Review> getReviewsForProduct(String productId, [String? productName, bool includeHidden = false]) {
+    final pid = productId.trim().toLowerCase();
+    final pname = (productName ?? '').trim().toLowerCase();
+
+    return reviews.where((r) {
+      if (r.userName == 'Nguyễn Văn A' || r.userName == 'Trần Thị B' || r.userName == 'Lê Văn C') {
+        return false;
+      }
+
+      if (!includeHidden && r.isHidden) {
+        return false;
+      }
+
+      final rPid = r.productId.trim().toLowerCase();
+      final rPname = (r.productName ?? '').trim().toLowerCase();
+
+      // Khớp theo ID sản phẩm
+      if (pid.isNotEmpty && rPid.isNotEmpty && rPid == pid) return true;
+
+      // Khớp theo Tên sản phẩm (VD: Táo Envy New Zealand)
+      if (pname.isNotEmpty && rPname.isNotEmpty) {
+        if (rPname == pname || rPname.contains(pname) || pname.contains(rPname)) {
+          return true;
+        }
+        // Khớp đặc biệt cho nhóm Táo
+        if (pname.contains('táo') && rPname.contains('táo')) {
+          return true;
+        }
+      }
+      return false;
+    }).toList();
+  }
+
+  static double getAverageRatingForProduct(String productId, [String? productName]) {
+    final validReviews = getReviewsForProduct(productId, productName, false);
+    if (validReviews.isEmpty) {
+      final pIndex = products.indexWhere((p) => p.id == productId || (productName != null && p.name == productName));
+      if (pIndex != -1) return products[pIndex].rating;
+      return 5.0;
+    }
+    final avg = validReviews.map((r) => r.rating).reduce((a, b) => a + b) / validReviews.length;
+    return double.parse(avg.toStringAsFixed(1));
+  }
+
+  static Future<void> _updateProductRating(String productId, String? productName) async {
+    final roundedRating = getAverageRatingForProduct(productId, productName);
+    final pIndex = products.indexWhere((p) => p.id == productId || (productName != null && p.name == productName));
+    if (pIndex != -1) {
+      final p = products[pIndex];
+      products[pIndex] = Product(
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        stock: p.stock,
+        category: p.category,
+        origin: p.origin,
+        freshness: p.freshness,
+        rating: roundedRating,
+        isActive: p.isActive,
+        isDeleted: p.isDeleted,
+      );
+      await _saveProducts();
+
+      try {
+        var colProducts = MongoDBService.getCollection("products");
+        await colProducts.updateOne(
+          mongo.where.eq('id', p.id),
+          mongo.modify.set('rating', roundedRating),
+        );
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> addReview(Review review) async {
+    reviews.insert(0, review);
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.insertOne(review.toJson());
+      print("Đã lưu đánh giá thực tế của ${review.userName} vào MongoDB traicay_db");
+    } catch (e) {
+      print("MongoDB Error (addReview): $e");
+    }
+
+    await _updateProductRating(review.productId, review.productName);
+  }
+
+  static Future<void> updateReview(String reviewId, {int? rating, String? comment, String? imageUrl, bool? hasImage}) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final old = reviews[index];
+    final updated = old.copyWith(
+      rating: rating,
+      comment: comment,
+      imageUrl: imageUrl,
+      hasImage: hasImage ?? (imageUrl != null && imageUrl.isNotEmpty),
+      updatedAt: DateTime.now(),
+    );
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify
+            .set('rating', updated.rating)
+            .set('comment', updated.comment)
+            .set('hasImage', updated.hasImage)
+            .set('imageUrl', updated.imageUrl)
+            .set('updatedAt', updated.updatedAt?.toIso8601String()),
+      );
+    } catch (e) {
+      print("MongoDB Error (updateReview): $e");
+    }
+
+    await _updateProductRating(updated.productId, updated.productName);
+  }
+
+  static Future<void> deleteReview(String reviewId) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+    final r = reviews.removeAt(index);
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.deleteOne(mongo.where.eq('id', reviewId));
+    } catch (e) {
+      print("MongoDB Error (deleteReview): $e");
+    }
+
+    await _updateProductRating(r.productId, r.productName);
+  }
+
+  static Future<void> replyReview(String reviewId, String reply) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final updated = reviews[index].copyWith(
+      adminReply: reply,
+      adminReplyAt: DateTime.now(),
+    );
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify
+            .set('adminReply', reply)
+            .set('adminReplyAt', updated.adminReplyAt?.toIso8601String()),
+      );
+    } catch (e) {
+      print("MongoDB Error (replyReview): $e");
+    }
+  }
+
+  static Future<void> toggleHideReview(String reviewId, bool isHidden) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final updated = reviews[index].copyWith(isHidden: isHidden);
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify.set('isHidden', isHidden),
+      );
+    } catch (e) {
+      print("MongoDB Error (toggleHideReview): $e");
+    }
+
+    await _updateProductRating(updated.productId, updated.productName);
+  }
+
+  static bool hasPurchasedProduct(String userEmail, String productId, [String? productName]) {
+    final email = userEmail.trim().toLowerCase();
+    if (email.isEmpty) return false;
+
+    final userOrders = orders.where((o) => (o.customerEmail ?? '').toLowerCase() == email).toList();
+    if (userOrders.isEmpty) return false;
+
+    final pid = productId.trim().toLowerCase();
+    final pname = (productName ?? '').trim().toLowerCase();
+
+    for (var o in userOrders) {
+      final summary = o.itemsSummary.toLowerCase();
+      if (pid.isNotEmpty && summary.contains(pid)) return true;
+      if (pname.isNotEmpty && summary.contains(pname)) return true;
+
+      final pIndex = products.indexWhere((p) => p.id.toLowerCase() == pid);
+      if (pIndex != -1) {
+        final pRealName = products[pIndex].name.toLowerCase();
+        if (summary.contains(pRealName)) return true;
+      }
+    }
+    return false;
   }
 }
