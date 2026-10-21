@@ -384,6 +384,65 @@ class DataService {
     }
   }
 
+  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == oldCode.toUpperCase());
+    if (index != -1) {
+      vouchers[index] = updatedVoucher;
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', oldCode),
+          mongo.modify
+              .set('code', updatedVoucher.code)
+              .set('description', updatedVoucher.description)
+              .set('discountAmount', updatedVoucher.discountAmount)
+              .set('discount_percent', updatedVoucher.discountAmount)
+              .set('minPurchase', updatedVoucher.minPurchase)
+              .set('min_order_value', updatedVoucher.minPurchase)
+              .set('isActive', updatedVoucher.isActive)
+              .set('updated_at', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateVoucher): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    await _saveVouchers();
+
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
+    }
+  }
+
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    if (index != -1) {
+      final old = vouchers[index];
+      vouchers[index] = old.copyWith(isActive: isActive);
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', code),
+          mongo.modify
+              .set('isActive', isActive)
+              .set('updated_at', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
+    }
+  }
+
   static Future<void> updateCustomerStatus(String id, bool isActive) async {
     final index = customers.indexWhere((c) => c.id == id);
     if (index != -1) {

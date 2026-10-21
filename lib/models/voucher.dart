@@ -32,4 +32,20 @@ class Voucher {
       'isActive': isActive,
     };
   }
+
+  Voucher copyWith({
+    String? code,
+    String? description,
+    double? discountAmount,
+    double? minPurchase,
+    bool? isActive,
+  }) {
+    return Voucher(
+      code: code ?? this.code,
+      description: description ?? this.description,
+      discountAmount: discountAmount ?? this.discountAmount,
+      minPurchase: minPurchase ?? this.minPurchase,
+      isActive: isActive ?? this.isActive,
+    );
+  }
 }
