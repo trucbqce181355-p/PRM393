@@ -24,4 +24,3 @@ plugins {
 }
 
 include(":app")
-rootProject.name = "flow_09_shipper_delivery"
