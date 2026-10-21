@@ -21,10 +21,24 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   String _selectedPayment = 'COD';
+  String _shippingMethod = 'STANDARD'; // 'STANDARD' | 'EXPRESS'
   bool _isProcessing = false;
   String? _appliedVoucherCode;
   double _discountAmount = 0.0;
   final TextEditingController _voucherController = TextEditingController();
+
+  double get _shippingFee {
+    if (_shippingMethod == 'EXPRESS') {
+      return 35000.0;
+    }
+    // Giao tiêu chuẩn: Đơn từ 300.000₫ được miễn phí giao hàng, dưới 300.000₫ là 20.000₫
+    return Cart.totalAmount >= 300000 ? 0.0 : 20000.0;
+  }
+
+  double get _finalTotal {
+    final total = Cart.totalAmount + _shippingFee - _discountAmount;
+    return total > 0 ? total : 0.0;
+  }
 
   @override
   void initState() {
@@ -363,7 +377,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // Generate order summary string from cart items
     final itemNames = Cart.items.map((i) => '${i.product.name} (x${i.quantity})').join(' + ');
     final orderId = 'DH${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
-    final double finalTotal = (Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0);
+    final double finalTotal = _finalTotal;
 
     final userPhone = selectedAddr['phone']?.toString() ?? (AuthService.currentUser?.phone ?? '0912345678');
 
@@ -704,7 +718,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Chi tiết thanh toán', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    const Text('Chi tiết thanh toán & Tổng hóa đơn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -717,8 +731,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Phí giao hàng', style: TextStyle(color: Colors.black54, fontSize: 14)),
-                        Text('Miễn phí', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w600, fontSize: 14)),
+                        Row(
+                          children: [
+                            const Text('Phí vận chuyển', style: TextStyle(color: Colors.black54, fontSize: 14)),
+                            const SizedBox(width: 4),
+                            Text(
+                              _shippingMethod == 'EXPRESS' ? '(Hỏa tốc)' : '(Tiêu chuẩn)',
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          _shippingFee == 0 ? 'Miễn phí' : FormatHelper.formatPrice(_shippingFee),
+                          style: TextStyle(
+                            color: _shippingFee == 0 ? Colors.green.shade700 : Colors.black87,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
                     if (_discountAmount > 0) ...[
@@ -741,12 +771,56 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Tổng thanh toán', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const Text('Tổng hóa đơn thanh toán', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         Text(
-                          FormatHelper.formatPrice(Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0),
+                          FormatHelper.formatPrice(_finalTotal),
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Shipping Method
+              const Text('Phương thức vận chuyển', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    RadioListTile<String>(
+                      title: const Text('Giao hàng tiêu chuẩn (2 - 3 ngày)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      subtitle: Text(
+                        Cart.totalAmount >= 300000
+                            ? 'Miễn phí (Ưu đãi đơn từ 300.000₫)'
+                            : '20.000₫ (Mua thêm ${FormatHelper.formatPrice(300000 - Cart.totalAmount)} để được FreeShip)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Cart.totalAmount >= 300000 ? Colors.green : Colors.grey.shade600,
+                          fontWeight: Cart.totalAmount >= 300000 ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      value: 'STANDARD',
+                      groupValue: _shippingMethod,
+                      activeColor: Colors.green,
+                      onChanged: (val) => setState(() => _shippingMethod = val!),
+                    ),
+                    const Divider(height: 1),
+                    RadioListTile<String>(
+                      title: const Row(
+                        children: [
+                          Icon(Icons.flash_on, color: Colors.orange, size: 18),
+                          SizedBox(width: 4),
+                          Text('Giao hàng hỏa tốc (Trong 2 giờ)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        ],
+                      ),
+                      subtitle: const Text('35.000₫ • Nhận hàng ngay trong ngày', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                      value: 'EXPRESS',
+                      groupValue: _shippingMethod,
+                      activeColor: Colors.green,
+                      onChanged: (val) => setState(() => _shippingMethod = val!),
                     ),
                   ],
                 ),
@@ -821,13 +895,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Tổng thanh toán', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                    if (_discountAmount > 0)
+                    if (_discountAmount > 0 || _shippingFee > 0)
                       Text(
                         FormatHelper.formatPrice(Cart.totalAmount),
                         style: const TextStyle(fontSize: 14, color: Colors.grey, decoration: TextDecoration.lineThrough),
                       ),
                     Text(
-                      FormatHelper.formatPrice(Cart.totalAmount - _discountAmount > 0 ? Cart.totalAmount - _discountAmount : 0),
+                      FormatHelper.formatPrice(_finalTotal),
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green),
                     ),
                   ],
