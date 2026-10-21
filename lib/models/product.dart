@@ -7,9 +7,10 @@ class Product {
   final String imageUrl;
   final double rating;
   int stock;
-  final String category;
+  String category;
   final String origin;
   final String freshness;
+  List<String> images;
   bool isActive;
   bool isDeleted;
 
@@ -20,6 +21,7 @@ class Product {
     required this.price,
     required this.unit,
     required this.imageUrl,
+    List<String>? images,
     this.rating = 5.0,
     this.stock = 100, // default stock
     this.category = 'Khác',
@@ -27,21 +29,31 @@ class Product {
     this.freshness = '100% Tươi mới trong ngày',
     this.isActive = true,
     this.isDeleted = false,
-  });
+  }) : images = images ?? (imageUrl.isNotEmpty ? [imageUrl] : []);
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final img = json['imageUrl']?.toString() ?? '';
+    List<String> imgList = [];
+    if (json['images'] != null && json['images'] is List) {
+      imgList = (json['images'] as List).map((e) => e.toString()).toList();
+    }
+    if (imgList.isEmpty && img.isNotEmpty) {
+      imgList = [img];
+    }
+
     return Product(
-      id: json['id'],
-      name: json['name'],
-      description: json['description'],
-      price: json['price']?.toDouble() ?? 0.0,
-      unit: json['unit'] ?? 'kg',
-      imageUrl: json['imageUrl'] ?? '',
-      rating: json['rating']?.toDouble() ?? 5.0,
-      stock: json['stock'] ?? 100,
-      category: json['category'] ?? 'Khác',
-      origin: json['origin'] ?? 'Việt Nam',
-      freshness: json['freshness'] ?? '100% Tươi mới trong ngày',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit']?.toString() ?? 'kg',
+      imageUrl: img.isNotEmpty ? img : (imgList.isNotEmpty ? imgList.first : ''),
+      images: imgList,
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      stock: (json['stock'] as num?)?.toInt() ?? 100,
+      category: json['category']?.toString() ?? 'Khác',
+      origin: json['origin']?.toString() ?? 'Việt Nam',
+      freshness: json['freshness']?.toString() ?? '100% Tươi mới trong ngày',
       isActive: json['isActive'] ?? true,
       isDeleted: json['isDeleted'] ?? false,
     );
@@ -55,6 +67,7 @@ class Product {
       'price': price,
       'unit': unit,
       'imageUrl': imageUrl,
+      'images': images,
       'rating': rating,
       'stock': stock,
       'category': category,

@@ -1,4 +1,5 @@
 import '../../utils/snackbar_helper.dart';
+import '../../utils/image_helper.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -24,6 +25,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
   int _stock = 0;
   String _category = DataService.categories.isNotEmpty ? DataService.categories.first.name : 'Khác';
   String _imageUrl = ''; // Rỗng mặc định, nếu có thì là URL hoặc đường dẫn file
+  List<String> _images = [];
 
   @override
   void initState() {
@@ -36,6 +38,10 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
       _stock = widget.product!.stock;
       _category = widget.product!.category;
       _imageUrl = widget.product!.imageUrl;
+      _images = List<String>.from(widget.product!.images);
+      if (_images.isEmpty && _imageUrl.isNotEmpty) {
+        _images.add(_imageUrl);
+      }
     }
   }
 
@@ -43,16 +49,21 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       
+      final primaryImage = _images.isNotEmpty ? _images.first : _imageUrl;
+
       final newProduct = Product(
         id: widget.product?.id ?? 'p${DateTime.now().millisecondsSinceEpoch}',
         name: _name,
         description: _description,
         price: _price,
         unit: _unit,
-        imageUrl: _imageUrl,
+        imageUrl: primaryImage,
+        images: _images,
         stock: _stock,
         category: _category,
-        rating: widget.product?.rating ?? 0.0,
+        origin: widget.product?.origin ?? 'Việt Nam',
+        freshness: widget.product?.freshness ?? '100% Tươi mới trong ngày',
+        rating: widget.product?.rating ?? 5.0,
       );
 
       // Save to Hive DB and MongoDB
@@ -71,11 +82,15 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E2C), // Dark theme
+      backgroundColor: const Color(0xFFF7F9FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF252538),
-        title: Text(widget.product != null ? 'Sửa sản phẩm' : 'Thêm trái cây mới', style: const TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0.5,
+        title: Text(
+          widget.product != null ? 'Sửa sản phẩm' : 'Thêm trái cây mới',
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -92,11 +107,11 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
-                      'Giá', 
+                      'Giá (₫)', 
                       (val) => _price = double.tryParse(val!) ?? 0.0, 
-                      '0.00',
+                      '0',
                       keyboardType: TextInputType.number,
-                      initialValue: widget.product != null ? _price.toString() : null,
+                      initialValue: widget.product != null ? _price.toStringAsFixed(0) : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -104,25 +119,33 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Đơn vị', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Text('Đơn vị', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: ['kg', 'hộp', 'quả', 'nải', 'thùng', 'bó', 'gram'].contains(_unit) ? _unit : 'kg',
-                          style: const TextStyle(color: Colors.white),
-                          dropdownColor: const Color(0xFF252538),
+                          style: const TextStyle(color: Colors.black87),
+                          dropdownColor: Colors.white,
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: const Color(0xFF252538),
+                            fillColor: Colors.white,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Colors.green, width: 1.5),
                             ),
                           ),
                           items: ['kg', 'hộp', 'quả', 'nải', 'thùng', 'bó', 'gram'].map((String item) {
                             return DropdownMenuItem<String>(
                               value: item,
-                              child: Text(item),
+                              child: Text(item, style: const TextStyle(color: Colors.black87)),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -154,7 +177,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Phân loại', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Text('Phân loại', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         Builder(
                           builder: (context) {
@@ -170,15 +193,23 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                                   
                             return DropdownButtonFormField<String>(
                               value: cats.any((c) => c.name == _category) ? _category : cats.first.name,
-                              style: const TextStyle(color: Colors.white),
-                              dropdownColor: const Color(0xFF252538),
+                              style: const TextStyle(color: Colors.black87),
+                              dropdownColor: Colors.white,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFF252538),
+                                fillColor: Colors.white,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Colors.green, width: 1.5),
                                 ),
                               ),
                               items: cats.map((cat) {
@@ -186,6 +217,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                                   value: cat.name,
                                   child: Text(
                                     cat.name,
+                                    style: const TextStyle(color: Colors.black87),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 );
@@ -205,45 +237,204 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Hình ảnh sản phẩm (Tùy chọn)', style: TextStyle(color: Colors.white70, fontSize: 14)),
-              const SizedBox(height: 8),
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF252538),
-                      borderRadius: BorderRadius.circular(12),
-                      image: _imageUrl.isNotEmpty
-                          ? DecorationImage(
-                              image: _imageUrl.startsWith('http')
-                                  ? NetworkImage(_imageUrl) as ImageProvider
-                                  : FileImage(File(_imageUrl)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: _imageUrl.isEmpty
-                        ? const Icon(Icons.image, color: Colors.grey)
-                        : null,
+                  const Text('Hình ảnh sản phẩm (Tùy chọn)', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${_images.length} hình ảnh',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                   ),
-                  const SizedBox(width: 16),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Chọn hình ảnh từ máy'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Image thumbnails row
+              if (_images.isNotEmpty)
+                Container(
+                  height: 96,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _images.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final img = _images[index];
+                      final isCover = index == 0;
+
+                      return Stack(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              // Tap to move to cover position (index 0)
+                              if (index > 0) {
+                                setState(() {
+                                  final item = _images.removeAt(index);
+                                  _images.insert(0, item);
+                                  _imageUrl = _images.first;
+                                });
+                                SnackbarHelper.showSuccess(context, 'Đã đặt làm ảnh chính');
+                              }
+                            },
+                            child: Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isCover ? Colors.green.shade600 : Colors.grey.shade300,
+                                  width: isCover ? 2.5 : 1,
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: AppImage(imageUrl: img, fit: BoxFit.cover),
+                              ),
+                            ),
+                          ),
+                          if (isCover)
+                            Positioned(
+                              top: 4,
+                              left: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade700,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'ẢNH CHÍNH',
+                                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _images.removeAt(index);
+                                  _imageUrl = _images.isNotEmpty ? _images.first : '';
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+
+              // Action buttons row (Gallery, Camera, URL)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                    label: const Text('Thư viện', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade800,
+                      side: BorderSide(color: Colors.green.shade300),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     onPressed: () async {
                       final ImagePicker picker = ImagePicker();
-                      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-                      if (image != null) {
+                      try {
+                        final List<XFile> images = await picker.pickMultiImage();
+                        if (images.isNotEmpty) {
+                          setState(() {
+                            for (var img in images) {
+                              if (!_images.contains(img.path)) {
+                                _images.add(img.path);
+                              }
+                            }
+                            if (_imageUrl.isEmpty && _images.isNotEmpty) {
+                              _imageUrl = _images.first;
+                            }
+                          });
+                        }
+                      } catch (_) {
+                        final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          setState(() {
+                            if (!_images.contains(image.path)) _images.add(image.path);
+                            _imageUrl = _images.first;
+                          });
+                        }
+                      }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                    label: const Text('Chụp ảnh', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue.shade800,
+                      side: BorderSide(color: Colors.blue.shade300),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () async {
+                      final ImagePicker picker = ImagePicker();
+                      final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+                      if (photo != null) {
                         setState(() {
-                          _imageUrl = image.path;
+                          _images.add(photo.path);
+                          _imageUrl = _images.first;
                         });
                       }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.link_rounded, size: 18),
+                    label: const Text('Nhập link URL', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange.shade800,
+                      side: BorderSide(color: Colors.orange.shade300),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () {
+                      final urlCtrl = TextEditingController();
+                      showDialog(
+                        context: context,
+                        builder: (dCtx) => AlertDialog(
+                          title: const Text('Nhập liên kết ảnh'),
+                          content: TextField(
+                            controller: urlCtrl,
+                            decoration: const InputDecoration(
+                              hintText: 'https://images.unsplash.com/...',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Hủy')),
+                            ElevatedButton(
+                              onPressed: () {
+                                final text = urlCtrl.text.trim();
+                                if (text.isNotEmpty) {
+                                  setState(() {
+                                    _images.add(text);
+                                    if (_imageUrl.isEmpty) _imageUrl = text;
+                                  });
+                                }
+                                Navigator.pop(dCtx);
+                              },
+                              child: const Text('Thêm ảnh'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -251,14 +442,18 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _saveProduct,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text(widget.product != null ? 'Cập nhật' : 'Lưu Sản Phẩm', style: const TextStyle(fontSize: 18, color: Colors.white)),
+                  child: Text(
+                    widget.product != null ? 'Cập nhật sản phẩm' : 'Lưu sản phẩm',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -272,21 +467,30 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        Text(label, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextFormField(
           initialValue: initialValue,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.black87),
           maxLines: maxLines,
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.grey),
+            hintStyle: TextStyle(color: Colors.grey.shade400),
             filled: true,
-            fillColor: const Color(0xFF252538),
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.green, width: 1.5),
             ),
           ),
           validator: (value) {
