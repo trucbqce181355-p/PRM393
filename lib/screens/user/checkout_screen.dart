@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/data_service.dart';
 import '../../services/cod_payment_service.dart';
+import '../../widgets/payment_gateway_sheet.dart';
 import '../../utils/snackbar_helper.dart';
 import 'user_home_screen.dart';
 import 'user_addresses_screen.dart';
@@ -299,53 +300,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _showPaymentGatewaySimulation() {
-    showModalBottomSheet(
+    PaymentGatewaySheet.show(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.network(
-              _selectedPayment == 'MOMO'
-                  ? 'https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png'
-                  : 'https://vnpay.vn/s1/statics.vnpay.vn/2023/9/06ncktiwd6dc1694418196384.png',
-              height: 60,
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: Colors.pink),
-            const SizedBox(height: 24),
-            Text(
-              'Đang chờ thanh toán qua \$_selectedPayment...',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Vui lòng xác nhận trên ứng dụng của bạn.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Đóng Modal mô phỏng Momo
-                _completeOrder();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Mô phỏng: Đã thanh toán thành công', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
+      provider: _selectedPayment,
+      onSuccess: _completeOrder,
     );
   }
 
