@@ -524,7 +524,31 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              // Search Active Tag Chip
+              if (_searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text('Đang tìm kiếm:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
+                    const SizedBox(width: 8),
+                    Chip(
+                      avatar: const Icon(Icons.search, size: 14, color: Colors.green),
+                      label: Text('Từ khóa: "$_searchQuery"', style: const TextStyle(fontSize: 11)),
+                      deleteIcon: const Icon(Icons.close, size: 14),
+                      onDeleted: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
+                      },
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: Colors.green.shade50,
+                      side: BorderSide(color: Colors.green.shade200),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
 
               // Title & Search/Filter Status
               Row(
@@ -562,11 +586,53 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Product Grid
+              // Product Grid / Search Empty State
               _filteredProducts.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Center(child: Text('Không tìm thấy sản phẩm nào!')),
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 12),
+                          Text(
+                            _searchQuery.isNotEmpty
+                                ? 'Không tìm thấy kết quả cho "$_searchQuery"'
+                                : 'Không tìm thấy sản phẩm nào!',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Thử nhập từ khóa khác như "Táo Envy", "Xoài", hoặc tên xuất xứ để tìm kiếm.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          ),
+                          if (_searchQuery.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                              icon: const Icon(Icons.clear, size: 18),
+                              label: const Text('Xóa từ khóa tìm kiếm'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     )
                   : GridView.builder(
                       shrinkWrap: true,
