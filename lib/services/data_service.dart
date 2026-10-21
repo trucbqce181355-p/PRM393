@@ -345,19 +345,27 @@ class DataService {
   }
 
   static Future<void> _saveProducts() async {
-    await _box.put('products', products.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('products', products.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   static Future<void> _saveVouchers() async {
-    await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   static Future<void> _saveOrders() async {
-    await _box.put('orders', orders.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('orders', orders.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   static Future<void> _saveReviews() async {
-    await _box.put('reviews', reviews.map((e) => e.toJson()).toList());
+    try {
+      await _box.put('reviews', reviews.map((e) => e.toJson()).toList());
+    } catch (_) {}
   }
 
   // --- API Methods ---
