@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'services/delivery_confirmation_service.dart';
 import 'order_service.dart';
 import 'services/shipper_order_workflow.dart';
 import 'snackbar_helper.dart';
@@ -103,19 +101,10 @@ class _ShipperOrdersScreenState extends State<ShipperOrdersScreen> {
       );
       if (photo == null) return;
 
-      final directory = await getApplicationDocumentsDirectory();
-      final extension = photo.name.contains('.')
-          ? photo.name.split('.').last
-          : 'jpg';
-      final savedPhoto = await File(photo.path).copy(
-        '${directory.path}${Platform.pathSeparator}'
-        'delivery-checkin-$orderId-${DateTime.now().millisecondsSinceEpoch}.$extension',
+      final updated = await DeliveryConfirmationService.confirmDelivered(
+        orderId: orderId,
+        photo: photo,
       );
-      final updated = await OrderService.updateOrder(orderId, {
-        'status': 'Đã hoàn thành',
-        'deliveryPhotoPath': savedPhoto.path,
-        'deliveredAt': DateTime.now().toIso8601String(),
-      });
       if (!updated) {
         throw StateError('Không tìm thấy đơn hàng #$orderId.');
       }
