@@ -6,6 +6,7 @@ import '../models/customer.dart';
 import '../models/category.dart';
 import '../models/review.dart';
 import 'mongodb_service.dart';
+import 'order_notification_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
 class DataService {
@@ -718,6 +719,12 @@ class DataService {
       } catch (e) {
         print("MongoDB Error (updateOrderStatus): $e");
       }
+
+      await OrderNotificationService.notifyStatusChanged(
+        orderId: orderId,
+        userEmail: orders[index].customerEmail,
+        status: newStatus,
+      );
     }
   }
 

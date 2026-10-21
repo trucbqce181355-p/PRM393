@@ -63,6 +63,37 @@ class StorageService {
     await saveOrders(orders, userEmail: userEmail);
   }
 
+  static List<Map<String, dynamic>> getOrderNotifications(String userEmail) {
+    final data = _prefs?.getString('order_notifications_$userEmail');
+    if (data == null) return [];
+    final decoded = jsonDecode(data) as List<dynamic>;
+    return decoded.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  }
+
+  static Future<void> addOrderNotification(
+    String userEmail,
+    Map<String, dynamic> notification,
+  ) async {
+    if (_prefs == null) await init();
+    final notifications = getOrderNotifications(userEmail)
+      ..insert(0, notification);
+    await _prefs?.setString(
+      'order_notifications_$userEmail',
+      jsonEncode(notifications),
+    );
+  }
+
+  static Future<void> markOrderNotificationsRead(String userEmail) async {
+    if (_prefs == null) await init();
+    final notifications = getOrderNotifications(userEmail)
+      .map((item) => {...item, 'isRead': true})
+      .toList();
+    await _prefs?.setString(
+      'order_notifications_$userEmail',
+      jsonEncode(notifications),
+    );
+  }
+
   // --- ADDRESSES ---
   static List<Map<String, dynamic>> getAddresses() {
     final String? data = _prefs?.getString('addresses');
