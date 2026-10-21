@@ -46,3 +46,14 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local authentication configuration and generated dependencies
+supabase.env.json
+auth_backend/.env
+auth_backend/node_modules/
+auth_backend/*.local.json
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/node_modules/
+backend/serviceAccountKey.json

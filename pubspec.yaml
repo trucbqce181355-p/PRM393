@@ -11,15 +11,17 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  mailer: ^7.2.0
   shared_preferences: ^2.5.5
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   intl: ^0.20.3
   mongo_dart: ^0.10.9
   image_picker: ^1.2.4
+  http: ^1.6.0
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
+  app_links: ^7.2.2
+  supabase_flutter: ^2.18.2
 
 dev_dependencies:
   flutter_test:

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
@@ -16,47 +17,12 @@ class StorageService {
   // --- AUTH & SESSION (Dev 2: Flow Xác thực) ---
   // ==========================================
 
-  /// Lưu trữ Auth Token phiên đăng nhập xuống local
-  static Future<void> saveAuthToken(String token) async {
-    if (_prefs == null) await init();
-    await _prefs?.setString(_keyAuthToken, token);
-  }
-
-  /// Lấy Auth Token từ local storage
-  static String? getAuthToken() {
-    return _prefs?.getString(_keyAuthToken);
-  }
-
-  /// Kiểm tra trạng thái đăng nhập (đã lưu token hay chưa)
-  static bool isLoggedIn() {
-    final token = getAuthToken();
-    return token != null && token.isNotEmpty;
-  }
-
-  /// Lưu trữ phiên thông tin User xuống local
-  static Future<void> saveUserSession(Map<String, dynamic> userData) async {
-    if (_prefs == null) await init();
-    await _prefs?.setString(_keyUserSession, jsonEncode(userData));
-  }
-
-  /// Lấy dữ liệu phiên thông tin User từ local
-  static Map<String, dynamic>? getUserSession() {
-    final String? data = _prefs?.getString(_keyUserSession);
-    if (data != null && data.isNotEmpty) {
-      try {
-        return jsonDecode(data) as Map<String, dynamic>;
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
-
   /// Xóa token và phiên làm việc khi đăng xuất (Logout)
   static Future<void> clearAuthSession() async {
     if (_prefs == null) await init();
     await _prefs?.remove(_keyAuthToken);
     await _prefs?.remove(_keyUserSession);
+    await _prefs?.remove('saved_session_user_id');
   }
 
   // ==========================================
