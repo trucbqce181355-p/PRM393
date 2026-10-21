@@ -735,12 +735,16 @@ class DataService {
     }
   }
 
-  static List<Review> getReviewsForProduct(String productId, [String? productName]) {
+  static List<Review> getReviewsForProduct(String productId, [String? productName, bool includeHidden = false]) {
     final pid = productId.trim().toLowerCase();
     final pname = (productName ?? '').trim().toLowerCase();
 
     return reviews.where((r) {
       if (r.userName == 'Nguyễn Văn A' || r.userName == 'Trần Thị B' || r.userName == 'Lê Văn C') {
+        return false;
+      }
+
+      if (!includeHidden && r.isHidden) {
         return false;
       }
 
@@ -764,6 +768,49 @@ class DataService {
     }).toList();
   }
 
+  static double getAverageRatingForProduct(String productId, [String? productName]) {
+    final validReviews = getReviewsForProduct(productId, productName, false);
+    if (validReviews.isEmpty) {
+      final pIndex = products.indexWhere((p) => p.id == productId || (productName != null && p.name == productName));
+      if (pIndex != -1) return products[pIndex].rating;
+      return 5.0;
+    }
+    final avg = validReviews.map((r) => r.rating).reduce((a, b) => a + b) / validReviews.length;
+    return double.parse(avg.toStringAsFixed(1));
+  }
+
+  static Future<void> _updateProductRating(String productId, String? productName) async {
+    final roundedRating = getAverageRatingForProduct(productId, productName);
+    final pIndex = products.indexWhere((p) => p.id == productId || (productName != null && p.name == productName));
+    if (pIndex != -1) {
+      final p = products[pIndex];
+      products[pIndex] = Product(
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        stock: p.stock,
+        category: p.category,
+        origin: p.origin,
+        freshness: p.freshness,
+        rating: roundedRating,
+        isActive: p.isActive,
+        isDeleted: p.isDeleted,
+      );
+      await _saveProducts();
+
+      try {
+        var colProducts = MongoDBService.getCollection("products");
+        await colProducts.updateOne(
+          mongo.where.eq('id', p.id),
+          mongo.modify.set('rating', roundedRating),
+        );
+      } catch (_) {}
+    }
+  }
+
   static Future<void> addReview(Review review) async {
     reviews.insert(0, review);
     await _saveReviews();
@@ -776,40 +823,124 @@ class DataService {
       print("MongoDB Error (addReview): $e");
     }
 
-    // Cập nhật rating trung bình thực tế cho sản phẩm
-    final matchingReviews = getReviewsForProduct(review.productId, review.productName);
-    if (matchingReviews.isNotEmpty) {
-      final avg = matchingReviews.map((r) => r.rating).reduce((a, b) => a + b) / matchingReviews.length;
-      final roundedRating = double.parse(avg.toStringAsFixed(1));
+    await _updateProductRating(review.productId, review.productName);
+  }
 
-      final pIndex = products.indexWhere((p) => p.id == review.productId || (review.productName != null && p.name == review.productName));
+  static Future<void> updateReview(String reviewId, {int? rating, String? comment, String? imageUrl, bool? hasImage}) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final old = reviews[index];
+    final updated = old.copyWith(
+      rating: rating,
+      comment: comment,
+      imageUrl: imageUrl,
+      hasImage: hasImage ?? (imageUrl != null && imageUrl.isNotEmpty),
+      updatedAt: DateTime.now(),
+    );
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify
+            .set('rating', updated.rating)
+            .set('comment', updated.comment)
+            .set('hasImage', updated.hasImage)
+            .set('imageUrl', updated.imageUrl)
+            .set('updatedAt', updated.updatedAt?.toIso8601String()),
+      );
+    } catch (e) {
+      print("MongoDB Error (updateReview): $e");
+    }
+
+    await _updateProductRating(updated.productId, updated.productName);
+  }
+
+  static Future<void> deleteReview(String reviewId) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+    final r = reviews.removeAt(index);
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.deleteOne(mongo.where.eq('id', reviewId));
+    } catch (e) {
+      print("MongoDB Error (deleteReview): $e");
+    }
+
+    await _updateProductRating(r.productId, r.productName);
+  }
+
+  static Future<void> replyReview(String reviewId, String reply) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final updated = reviews[index].copyWith(
+      adminReply: reply,
+      adminReplyAt: DateTime.now(),
+    );
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify
+            .set('adminReply', reply)
+            .set('adminReplyAt', updated.adminReplyAt?.toIso8601String()),
+      );
+    } catch (e) {
+      print("MongoDB Error (replyReview): $e");
+    }
+  }
+
+  static Future<void> toggleHideReview(String reviewId, bool isHidden) async {
+    final index = reviews.indexWhere((r) => r.id == reviewId);
+    if (index == -1) return;
+
+    final updated = reviews[index].copyWith(isHidden: isHidden);
+    reviews[index] = updated;
+    await _saveReviews();
+
+    try {
+      var col = MongoDBService.getCollection("reviews");
+      await col.updateOne(
+        mongo.where.eq('id', reviewId),
+        mongo.modify.set('isHidden', isHidden),
+      );
+    } catch (e) {
+      print("MongoDB Error (toggleHideReview): $e");
+    }
+
+    await _updateProductRating(updated.productId, updated.productName);
+  }
+
+  static bool hasPurchasedProduct(String userEmail, String productId, [String? productName]) {
+    final email = userEmail.trim().toLowerCase();
+    if (email.isEmpty) return false;
+
+    final userOrders = orders.where((o) => (o.customerEmail ?? '').toLowerCase() == email).toList();
+    if (userOrders.isEmpty) return false;
+
+    final pid = productId.trim().toLowerCase();
+    final pname = (productName ?? '').trim().toLowerCase();
+
+    for (var o in userOrders) {
+      final summary = o.itemsSummary.toLowerCase();
+      if (pid.isNotEmpty && summary.contains(pid)) return true;
+      if (pname.isNotEmpty && summary.contains(pname)) return true;
+
+      final pIndex = products.indexWhere((p) => p.id.toLowerCase() == pid);
       if (pIndex != -1) {
-        final p = products[pIndex];
-        products[pIndex] = Product(
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          price: p.price,
-          unit: p.unit,
-          imageUrl: p.imageUrl,
-          stock: p.stock,
-          category: p.category,
-          origin: p.origin,
-          freshness: p.freshness,
-          rating: roundedRating,
-          isActive: p.isActive,
-          isDeleted: p.isDeleted,
-        );
-        await _saveProducts();
-
-        try {
-          var colProducts = MongoDBService.getCollection("products");
-          await colProducts.updateOne(
-            mongo.where.eq('id', p.id),
-            mongo.modify.set('rating', roundedRating)
-          );
-        } catch (_) {}
+        final pRealName = products[pIndex].name.toLowerCase();
+        if (summary.contains(pRealName)) return true;
       }
     }
+    return false;
   }
 }
