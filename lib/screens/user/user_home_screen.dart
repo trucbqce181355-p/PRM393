@@ -42,13 +42,41 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   ];
 
   final List<String> _priceRanges = [
-    'Dưới 500.000₫',
-    '500.000₫ - 1.000.000₫',
-    '1.000.000₫ - 2.000.000₫',
-    '2.000.000₫ - 3.000.000₫',
-    'Trên 3.000.000₫',
+    'Dưới 100.000₫',
+    '100.000₫ - 200.000₫',
+    '200.000₫ - 500.000₫',
+    'Trên 500.000₫',
   ];
   final List<String> _selectedPriceRanges = [];
+
+  final List<String> _originOptions = [
+    'Việt Nam (Nội địa)',
+    'New Zealand',
+    'Nhật Bản',
+    'Australia (Úc)',
+    'Nhập khẩu',
+  ];
+  final List<String> _selectedOrigins = [];
+
+  bool get _hasActiveFilters =>
+      _selectedCategory != 'Tất cả' ||
+      _selectedOrigins.isNotEmpty ||
+      _selectedPriceRanges.isNotEmpty;
+
+  int get _activeFilterCount =>
+      (_selectedCategory != 'Tất cả' ? 1 : 0) +
+      _selectedOrigins.length +
+      _selectedPriceRanges.length;
+
+  void _resetFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedCategory = 'Tất cả';
+      _selectedOrigins.clear();
+      _selectedPriceRanges.clear();
+    });
+  }
 
   // Danh mục trái cây
   final List<Map<String, String>> _categories = [
@@ -128,6 +156,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           p.description.toLowerCase().contains(query) ||
           p.price.toString().contains(query);
 
+      // 2. Lọc theo Danh mục (Category)
       bool matchesCategory = true;
       if (_selectedCategory != 'Tất cả') {
         final catLower = _selectedCategory.toLowerCase();
@@ -140,11 +169,49 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           matchesCategory = pCatLower.contains(catLower) || catLower.contains(pCatLower);
         }
       }
-      
+
+      // 3. Lọc theo Nguồn gốc (Origin)
+      bool matchesOrigin = true;
+      if (_selectedOrigins.isNotEmpty) {
+        matchesOrigin = false;
+        final pOriginLower = p.origin.toLowerCase();
+        final pCatLower = p.category.toLowerCase();
+        for (String origin in _selectedOrigins) {
+          if (origin == 'Việt Nam (Nội địa)' || origin == 'Việt Nam') {
+            if (pOriginLower.contains('việt nam') ||
+                pOriginLower.contains('đồng tháp') ||
+                pOriginLower.contains('bến tre') ||
+                pOriginLower.contains('bình thuận') ||
+                pOriginLower.contains('bình dương')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (origin == 'Nhập khẩu') {
+            if (!pOriginLower.contains('việt nam') || pCatLower.contains('nhập khẩu')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (origin == 'Australia (Úc)' || origin == 'Úc') {
+            if (pOriginLower.contains('úc') || pOriginLower.contains('australia')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (pOriginLower.contains(origin.toLowerCase())) {
+            matchesOrigin = true;
+            break;
+          }
+        }
+      }
+
+      // 4. Lọc theo Giá (Price)
       bool matchesPrice = true;
       if (_selectedPriceRanges.isNotEmpty) {
         matchesPrice = false;
         for (String range in _selectedPriceRanges) {
+          if (range == 'Dưới 100.000₫' && p.price < 100000) matchesPrice = true;
+          if (range == '100.000₫ - 200.000₫' && p.price >= 100000 && p.price <= 200000) matchesPrice = true;
+          if (range == '200.000₫ - 500.000₫' && p.price >= 200000 && p.price <= 500000) matchesPrice = true;
+          if (range == 'Trên 500.000₫' && p.price > 500000) matchesPrice = true;
           if (range == 'Dưới 500.000₫' && p.price < 500000) matchesPrice = true;
           if (range == '500.000₫ - 1.000.000₫' && p.price >= 500000 && p.price <= 1000000) matchesPrice = true;
           if (range == '1.000.000₫ - 2.000.000₫' && p.price >= 1000000 && p.price <= 2000000) matchesPrice = true;
@@ -153,7 +220,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         }
       }
 
-      return matchesSearch && matchesCategory && matchesPrice;
+      return matchesSearch && matchesCategory && matchesOrigin && matchesPrice;
     }).toList();
 
     if (_selectedSort == 'Giá: Tăng dần') {
@@ -469,82 +536,275 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Price Filter & BO LOC
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 12.0),
-                    child: Icon(Icons.filter_alt_outlined, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 8),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 16.0),
-                    child: Text('BỘ LỌC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Theme(
-                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          title: const Text('Lọc giá', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                          children: _priceRanges.map((range) {
-                            return Column(
-                              children: [
-                                const Divider(height: 1),
-                                CheckboxListTile(
-                                  title: Text(range, style: TextStyle(color: Colors.grey[800], fontSize: 14)),
-                                  value: _selectedPriceRanges.contains(range),
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _selectedPriceRanges.add(range);
-                                      } else {
-                                        _selectedPriceRanges.remove(range);
-                                      }
-                                    });
-                                  },
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  activeColor: const Color(0xFF1976D2),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                                  visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
+              // =======================================================
+              // BỘ LỌC TÌM KIẾM (LỌC THEO GIÁ, NGUỒN GỐC, DANH MỤC)
+              // =======================================================
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                ],
-              ),
-              // Search Active Tag Chip
-              if (_searchQuery.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Row(
+                  ],
+                ),
+                child: Column(
                   children: [
-                    const Text('Đang tìm kiếm:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
-                    const SizedBox(width: 8),
-                    Chip(
-                      avatar: const Icon(Icons.search, size: 14, color: Colors.green),
-                      label: Text('Từ khóa: "$_searchQuery"', style: const TextStyle(fontSize: 11)),
-                      deleteIcon: const Icon(Icons.close, size: 14),
-                      onDeleted: () {
-                        setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
-                        });
-                      },
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor: Colors.green.shade50,
-                      side: BorderSide(color: Colors.green.shade200),
+                    // Header BỘ LỌC
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.filter_alt_outlined, color: Colors.green, size: 22),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'BỘ LỌC SẢN PHẨM',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                          ),
+                          if (_hasActiveFilters) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$_activeFilterCount',
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (_hasActiveFilters || _searchQuery.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: _resetFilters,
+                              icon: const Icon(Icons.refresh, size: 16, color: Colors.red),
+                              label: const Text('Đặt lại', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
+                    const Divider(height: 1),
+
+                    // 1. Lọc theo Giá
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(Icons.attach_money, color: Colors.green, size: 20),
+                        title: Row(
+                          children: [
+                            const Text('Lọc theo Giá', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                            if (_selectedPriceRanges.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Text('(${_selectedPriceRanges.length})', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedPriceRanges.isEmpty ? 'Tất cả mức giá' : _selectedPriceRanges.join(', '),
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _priceRanges.map((range) {
+                          final isSelected = _selectedPriceRanges.contains(range);
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              CheckboxListTile(
+                                title: Text(range, style: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedPriceRanges.add(range);
+                                    } else {
+                                      _selectedPriceRanges.remove(range);
+                                    }
+                                  });
+                                },
+                                controlAffinity: ListTileControlAffinity.leading,
+                                activeColor: Colors.green,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 2. Lọc theo Nguồn gốc (Origin)
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(Icons.public, color: Colors.blue, size: 20),
+                        title: Row(
+                          children: [
+                            const Text('Lọc theo Nguồn gốc', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                            if (_selectedOrigins.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Text('(${_selectedOrigins.length})', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedOrigins.isEmpty ? 'Tất cả xuất xứ' : _selectedOrigins.join(', '),
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _originOptions.map((origin) {
+                          final isSelected = _selectedOrigins.contains(origin);
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              CheckboxListTile(
+                                title: Text(origin, style: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedOrigins.add(origin);
+                                    } else {
+                                      _selectedOrigins.remove(origin);
+                                    }
+                                  });
+                                },
+                                controlAffinity: ListTileControlAffinity.leading,
+                                activeColor: Colors.blue,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 3. Lọc theo Danh mục (Category)
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(Icons.category_outlined, color: Colors.orange, size: 20),
+                        title: Row(
+                          children: [
+                            const Text('Lọc theo Danh mục', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                            if (_selectedCategory != 'Tất cả') ...[
+                              const SizedBox(width: 6),
+                              const Text('(1)', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedCategory,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _categories.map((cat) {
+                          final catName = cat['name']!;
+                          final isSelected = _selectedCategory == catName;
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              RadioListTile<String>(
+                                title: Text(catName, style: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                value: catName,
+                                groupValue: _selectedCategory,
+                                onChanged: (String? val) {
+                                  setState(() {
+                                    _selectedCategory = val ?? 'Tất cả';
+                                  });
+                                },
+                                activeColor: Colors.orange,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Filter Chips đang hoạt động
+              if (_hasActiveFilters || _searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Đang lọc:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
+                    if (_searchQuery.isNotEmpty)
+                      Chip(
+                        avatar: const Icon(Icons.search, size: 14, color: Colors.green),
+                        label: Text('Tìm: "$_searchQuery"', style: const TextStyle(fontSize: 11)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.green.shade50,
+                        side: BorderSide(color: Colors.green.shade200),
+                      ),
+                    if (_selectedCategory != 'Tất cả')
+                      Chip(
+                        avatar: const Icon(Icons.category, size: 14, color: Colors.orange),
+                        label: Text(_selectedCategory, style: const TextStyle(fontSize: 11)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedCategory = 'Tất cả';
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.orange.shade50,
+                        side: BorderSide(color: Colors.orange.shade200),
+                      ),
+                    ..._selectedOrigins.map((orig) => Chip(
+                          avatar: const Icon(Icons.public, size: 14, color: Colors.blue),
+                          label: Text(orig, style: const TextStyle(fontSize: 11)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () {
+                            setState(() {
+                              _selectedOrigins.remove(orig);
+                            });
+                          },
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: Colors.blue.shade50,
+                          side: BorderSide(color: Colors.blue.shade200),
+                        )),
+                    ..._selectedPriceRanges.map((range) => Chip(
+                          avatar: const Icon(Icons.attach_money, size: 14, color: Colors.green),
+                          label: Text(range, style: const TextStyle(fontSize: 11)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () {
+                            setState(() {
+                              _selectedPriceRanges.remove(range);
+                            });
+                          },
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: Colors.green.shade50,
+                          side: BorderSide(color: Colors.green.shade200),
+                        )),
                   ],
                 ),
               ],
