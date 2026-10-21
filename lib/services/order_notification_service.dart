@@ -35,6 +35,41 @@ class OrderNotificationService {
     });
   }
 
+  static Future<void> syncStatusChanges({
+    required String userEmail,
+    required List<Order> currentOrders,
+  }) async {
+    final cachedOrders = StorageService.getOrders(userEmail: userEmail);
+    final syncedOrders = <Map<String, dynamic>>[];
+
+    for (final order in currentOrders) {
+      final status = _statusLabel(order.status);
+      final cached = cachedOrders.where((item) => item['id'] == order.id);
+      final previous = cached.isEmpty ? null : cached.first;
+
+      if (previous != null && previous['status'] != status) {
+        await notifyStatusChanged(
+          orderId: order.id,
+          userEmail: userEmail,
+          status: order.status,
+        );
+      }
+
+      syncedOrders.add({
+        ...?previous,
+        'id': order.id,
+        'status': status,
+      });
+    }
+
+    final currentIds = currentOrders.map((order) => order.id).toSet();
+    syncedOrders.addAll(
+      cachedOrders.where((order) => !currentIds.contains(order['id'])),
+    );
+
+    await StorageService.saveOrders(syncedOrders, userEmail: userEmail);
+  }
+
   static List<Map<String, dynamic>> forCustomer(String userEmail) {
     return StorageService.getOrderNotifications(userEmail);
   }
