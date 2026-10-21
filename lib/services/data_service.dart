@@ -7,6 +7,7 @@ import '../models/category.dart';
 import '../models/review.dart';
 import 'mongodb_service.dart';
 import 'order_notification_service.dart';
+import 'order_status_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
 class DataService {
@@ -686,46 +687,19 @@ class DataService {
   }
 
   static Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
-    final index = orders.indexWhere((o) => o.id == orderId);
-    if (index != -1) {
-      orders[index].status = newStatus;
-      await _saveOrders();
+    final updatedOrder = await OrderStatusService.updateStatus(
+      orders: orders,
+      orderId: orderId,
+      status: newStatus,
+      saveOrders: _saveOrders,
+    );
+    if (updatedOrder == null) return;
 
-      String statusString;
-      switch (newStatus) {
-        case OrderStatus.ready:
-          statusString = 'Đã gói xong';
-          break;
-        case OrderStatus.delivering:
-          statusString = 'Đang giao';
-          break;
-        case OrderStatus.completed:
-          statusString = 'Đã hoàn thành';
-          break;
-        case OrderStatus.cancelled:
-          statusString = 'Đã hủy';
-          break;
-        case OrderStatus.pending:
-          statusString = 'Đang xử lý';
-          break;
-      }
-
-      try {
-        var col = MongoDBService.getCollection("orders");
-        await col.updateOne(
-          mongo.where.eq('id', orderId),
-          mongo.modify.set('status', statusString)
-        );
-      } catch (e) {
-        print("MongoDB Error (updateOrderStatus): $e");
-      }
-
-      await OrderNotificationService.notifyStatusChanged(
-        orderId: orderId,
-        userEmail: orders[index].customerEmail,
-        status: newStatus,
-      );
-    }
+    await OrderNotificationService.notifyStatusChanged(
+      orderId: updatedOrder.id,
+      userEmail: updatedOrder.customerEmail,
+      status: updatedOrder.status,
+    );
   }
 
   // --- REVIEWS API (Đánh giá người dùng thật kết nối MongoDB traicay_db) ---
