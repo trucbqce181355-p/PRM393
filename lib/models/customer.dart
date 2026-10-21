@@ -13,7 +13,7 @@ class Customer {
     required this.id,
     required this.name,
     required this.email,
-    this.password = '123456', // default
+    this.password = '', // Accounts without a plaintext password cannot use a fallback credential.
     required this.phone,
     required this.totalSpent,
     required this.totalOrders,
@@ -26,7 +26,7 @@ class Customer {
       id: json['id'],
       name: json['name'],
       email: json['email'],
-      password: json['password'] ?? '123456',
+      password: json['password'] ?? '',
       phone: json['phone'] ?? '',
       totalSpent: json['totalSpent']?.toDouble() ?? 0.0,
       totalOrders: json['totalOrders'] ?? 0,

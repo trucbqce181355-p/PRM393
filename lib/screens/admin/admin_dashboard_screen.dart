@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../user/user_home_screen.dart';
+import '../../utils/sign_out_dialog.dart';
 import '../../services/data_service.dart';
 import 'admin_add_product_screen.dart';
 import 'admin_orders_screen.dart';
@@ -33,13 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                (route) => false,
-              );
-            },
+            onPressed: () => showSignOutDialog(context),
           ),
           const SizedBox(width: 16),
         ],
@@ -80,13 +74,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text('Đăng xuất', style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                  (route) => false,
-                );
-              },
+              onTap: () => showSignOutDialog(context),
             ),
           ],
         ),

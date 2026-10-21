@@ -1,5 +1,6 @@
 import '../../utils/snackbar_helper.dart';
 import '../../services/auth_service.dart';
+import '../../utils/sign_out_dialog.dart';
 import 'package:flutter/material.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
@@ -265,14 +266,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             ),
               IconButton(
                 icon: const Icon(Icons.logout, color: Colors.redAccent),
-                onPressed: () {
-                  AuthService.logout();
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-                    (route) => false,
-                  );
-                },
+                onPressed: () => showSignOutDialog(context),
               ),
           ],
         ],
