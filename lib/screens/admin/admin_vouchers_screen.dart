@@ -11,6 +11,77 @@ class AdminVouchersScreen extends StatefulWidget {
 }
 
 class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
+  void _openEditVoucherDialog(Voucher v) {
+    final descController = TextEditingController(text: v.description);
+    final discountController = TextEditingController(text: v.discountAmount.toStringAsFixed(0));
+    final minPurchaseController = TextEditingController(text: v.minPurchase.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.edit_note, color: Colors.orange.shade700),
+              ),
+              const SizedBox(width: 12),
+              Text('Cập nhật mã ${v.code}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(labelText: 'Mô tả khuyến mãi', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: discountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Số tiền giảm (₫)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: minPurchaseController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Đơn hàng tối thiểu (₫)', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+            ElevatedButton(
+              onPressed: () async {
+                final discount = double.tryParse(discountController.text) ?? 0.0;
+                final minPurchase = double.tryParse(minPurchaseController.text) ?? 0.0;
+                final updated = v.copyWith(
+                  description: descController.text.trim(),
+                  discountAmount: discount,
+                  minPurchase: minPurchase,
+                );
+                await DataService.updateVoucher(v.code, updated);
+                if (!mounted) return;
+                Navigator.pop(ctx);
+                setState(() {});
+                SnackbarHelper.showSuccess(context, 'Đã cập nhật thông tin mã ${v.code}');
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Cập nhật', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _openAddVoucherDialog() {
     final codeController = TextEditingController();
     final descController = TextEditingController();
@@ -139,6 +210,16 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     title: Text(v.code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                     subtitle: Text('${v.description}\nGiảm: ${v.discountAmount.toStringAsFixed(0)}₫ - Đơn từ: ${v.minPurchase.toStringAsFixed(0)}₫'),
                     isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          tooltip: 'Chỉnh sửa voucher',
+                          onPressed: () => _openEditVoucherDialog(v),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

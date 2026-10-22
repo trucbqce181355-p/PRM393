@@ -365,6 +365,20 @@ class DataService {
     }
   }
 
+  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
+    final index = vouchers.indexWhere((v) => v.code == oldCode);
+    if (index != -1) {
+      vouchers[index] = updatedVoucher;
+      await _saveVouchers();
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.replaceOne(mongo.where.eq('code', oldCode), updatedVoucher.toJson());
+      } catch (e) {
+        print("MongoDB Error (updateVoucher): $e");
+      }
+    }
+  }
+
   static Future<void> addVoucher(Voucher voucher) async {
     vouchers.add(voucher);
     await _saveVouchers();
