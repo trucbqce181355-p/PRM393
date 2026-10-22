@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../models/voucher.dart';
 import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
-import '../user/user_vouchers_screen.dart';
 
 class AdminVouchersScreen extends StatefulWidget {
   const AdminVouchersScreen({super.key});
@@ -12,54 +11,100 @@ class AdminVouchersScreen extends StatefulWidget {
 }
 
 class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
-  void _addVoucher() {
+  void _openAddVoucherDialog() {
     final codeController = TextEditingController();
     final descController = TextEditingController();
-    final discountController = TextEditingController();
-    final minPurchaseController = TextEditingController();
+    final discountController = TextEditingController(text: '20000');
+    final minPurchaseController = TextEditingController(text: '100000');
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (ctx) {
         return AlertDialog(
-          title: const Text('Thêm Voucher mới'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.add_card, color: Colors.green.shade700),
+              ),
+              const SizedBox(width: 12),
+              const Text('Thêm Voucher mới', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: codeController, decoration: const InputDecoration(labelText: 'Mã giảm giá (VD: FREESHIP50)')),
-                TextField(controller: descController, decoration: const InputDecoration(labelText: 'Mô tả')),
-                TextField(controller: discountController, decoration: const InputDecoration(labelText: 'Số tiền giảm (\$)'), keyboardType: TextInputType.number),
-                TextField(controller: minPurchaseController, decoration: const InputDecoration(labelText: 'Đơn tối thiểu (\$)'), keyboardType: TextInputType.number),
+                TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Mã voucher (VD: WELCOME10)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Mô tả khuyến mãi',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: discountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Số tiền giảm (₫)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: minPurchaseController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Đơn hàng tối thiểu (₫)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
             ElevatedButton(
               onPressed: () async {
-                final code = codeController.text;
-                final desc = descController.text;
+                final code = codeController.text.trim().toUpperCase();
+                final desc = descController.text.trim();
                 final discount = double.tryParse(discountController.text) ?? 0.0;
                 final minPurchase = double.tryParse(minPurchaseController.text) ?? 0.0;
 
-                if (code.isNotEmpty && discount > 0) {
-                  final newVoucher = Voucher(
-                    code: code,
-                    description: desc,
-                    discountAmount: discount,
-                    minPurchase: minPurchase,
-                  );
-                  await DataService.addVoucher(newVoucher);
-                  if (!context.mounted) return;
-                  setState(() {});
-                  Navigator.pop(context);
-                  SnackbarHelper.showSuccess(context, 'Thêm voucher thành công');
-                } else {
-                  SnackbarHelper.showError(context, 'Vui lòng nhập mã và số tiền giảm');
+                if (code.isEmpty || discount <= 0) {
+                  SnackbarHelper.showError(context, 'Vui lòng nhập đầy đủ mã và số tiền giảm hợp lệ');
+                  return;
                 }
+
+                final newVoucher = Voucher(
+                  code: code,
+                  description: desc.isNotEmpty ? desc : 'Giảm ${discount.toStringAsFixed(0)}₫',
+                  discountAmount: discount,
+                  minPurchase: minPurchase,
+                  isActive: true,
+                );
+
+                await DataService.addVoucher(newVoucher);
+                if (!mounted) return;
+                Navigator.pop(ctx);
+                setState(() {});
+                SnackbarHelper.showSuccess(context, 'Tạo mã voucher ${newVoucher.code} thành công!');
               },
-              child: const Text('Thêm'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              child: const Text('Tạo mã', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -72,48 +117,32 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý Voucher'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
         actions: [
           IconButton(
-            icon: const Icon(Icons.wallet_outlined),
-            tooltip: 'Ví Voucher (User)',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const UserVouchersScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_circle, color: Colors.green, size: 28),
             tooltip: 'Thêm Voucher',
-            onPressed: _addVoucher,
-          )
+            onPressed: _openAddVoucherDialog,
+          ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: DataService.vouchers.length,
-        itemBuilder: (context, index) {
-          final voucher = DataService.vouchers[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              title: Text(voucher.code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-              subtitle: Text('${voucher.description}\nGiảm: \$${voucher.discountAmount} - Đơn từ: \$${voucher.minPurchase}'),
-              isThreeLine: true,
-              trailing: Switch(
-                value: voucher.isActive,
-                onChanged: (val) {
-                  // In real app, update state of voucher
-                  SnackbarHelper.showSuccess(context, 'Đã cập nhật trạng thái');
-                },
-              ),
+      body: DataService.vouchers.isEmpty
+          ? const Center(child: Text('Chưa có voucher nào. Nhấn + để tạo mới.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: DataService.vouchers.length,
+              itemBuilder: (ctx, index) {
+                final v = DataService.vouchers[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.local_offer, color: Colors.white)),
+                    title: Text(v.code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    subtitle: Text('${v.description}\nGiảm: ${v.discountAmount.toStringAsFixed(0)}₫ - Đơn từ: ${v.minPurchase.toStringAsFixed(0)}₫'),
+                    isThreeLine: true,
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
