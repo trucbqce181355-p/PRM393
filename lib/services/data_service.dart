@@ -365,6 +365,20 @@ class DataService {
     }
   }
 
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code == code);
+    if (index != -1) {
+      vouchers[index] = vouchers[index].copyWith(isActive: isActive);
+      await _saveVouchers();
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(mongo.where.eq('code', code), mongo.modify.set('isActive', isActive));
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
+    }
+  }
+
   static Future<void> deleteVoucher(String code) async {
     vouchers.removeWhere((v) => v.code == code);
     await _saveVouchers();

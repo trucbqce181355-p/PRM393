@@ -275,6 +275,15 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Switch(
+                          value: v.isActive,
+                          activeColor: Colors.green,
+                          onChanged: (val) async {
+                            await DataService.toggleVoucherStatus(v.code, val);
+                            setState(() {});
+                            SnackbarHelper.showSuccess(context, val ? 'Đã kích hoạt ${v.code}' : 'Đã vô hiệu hóa ${v.code}');
+                          },
+                        ),
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.blue),
                           tooltip: 'Chỉnh sửa voucher',
