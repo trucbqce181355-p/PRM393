@@ -7,6 +7,14 @@ class Voucher {
   final String discountType; // 'fixed' | 'percentage'
   final double discountPercentage;
 
+  double calculateDiscount(double orderAmount) {
+    if (orderAmount < minPurchase) return 0.0;
+    if (discountType == 'percentage') {
+      return orderAmount * (discountPercentage / 100.0);
+    }
+    return discountAmount > orderAmount ? orderAmount : discountAmount;
+  }
+
   Voucher({
     required this.code,
     required this.description,

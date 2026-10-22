@@ -109,7 +109,7 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                 TextField(
                   controller: minPurchaseController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Đơn hàng tối thiểu (₫)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Đơn hàng tối thiểu (₫)', helperText: 'Đơn phải đạt giá trị này mới áp dụng được mã', border: OutlineInputBorder()),
                 ),
               ],
             ),
