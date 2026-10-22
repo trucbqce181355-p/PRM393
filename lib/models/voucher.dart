@@ -1,19 +1,12 @@
 class Voucher {
   final String code;
   final String description;
-  final double discountAmount;
+  final double discountAmount; // Số tiền giảm cố định (nếu discountType == 'fixed')
   final double minPurchase;
   final bool isActive;
-  final String discountType; // 'fixed' | 'percentage'
-  final double discountPercentage;
-
-  double calculateDiscount(double orderAmount) {
-    if (orderAmount < minPurchase) return 0.0;
-    if (discountType == 'percentage') {
-      return orderAmount * (discountPercentage / 100.0);
-    }
-    return discountAmount > orderAmount ? orderAmount : discountAmount;
-  }
+  final String discountType; // 'fixed' (tiền mặt) | 'percentage' (phần trăm)
+  final double discountPercentage; // % giảm giá (nếu discountType == 'percentage')
+  final double maxDiscountAmount; // Giảm tối đa (khi giảm theo %)
 
   Voucher({
     required this.code,
@@ -23,21 +16,42 @@ class Voucher {
     this.isActive = true,
     this.discountType = 'fixed',
     this.discountPercentage = 0.0,
+    this.maxDiscountAmount = 0.0,
   });
+
+  double calculateDiscount(double orderAmount) {
+    if (orderAmount < minPurchase) return 0.0;
+    if (discountType == 'percentage') {
+      double calculated = orderAmount * (discountPercentage / 100.0);
+      if (maxDiscountAmount > 0 && calculated > maxDiscountAmount) {
+        calculated = maxDiscountAmount;
+      }
+      return calculated;
+    }
+    return discountAmount > orderAmount ? orderAmount : discountAmount;
+  }
 
   factory Voucher.fromJson(Map<String, dynamic> json) {
     final rawPercent = (json['discountPercentage'] ?? json['discount_percent'] ?? 0.0).toDouble();
     final rawAmount = (json['discountAmount'] ?? json['discount_amount'] ?? 0.0).toDouble();
-    final isPercentage = json['discountType'] == 'percentage' || (rawPercent > 0 && rawPercent <= 100);
+
+    // If discount_percent > 100 (e.g. 15000 VND), legacy MongoDB records stored VND amount in discount_percent
+    final isLegacyVnd = rawAmount == 0.0 && rawPercent > 100;
+    final effectiveAmount = isLegacyVnd ? rawPercent : rawAmount;
+    final effectivePercent = isLegacyVnd ? 0.0 : rawPercent;
+
+    final type = json['discountType']?.toString() ??
+        (!isLegacyVnd && effectivePercent > 0 ? 'percentage' : 'fixed');
 
     return Voucher(
       code: json['code']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
-      discountAmount: isPercentage ? 0.0 : rawAmount,
+      discountAmount: effectiveAmount,
       minPurchase: (json['minPurchase'] ?? json['min_order_value'] ?? 0.0).toDouble(),
       isActive: json['isActive'] ?? true,
-      discountType: isPercentage ? 'percentage' : 'fixed',
-      discountPercentage: rawPercent,
+      discountType: type,
+      discountPercentage: effectivePercent,
+      maxDiscountAmount: (json['maxDiscountAmount'] ?? json['max_discount'] ?? 0.0).toDouble(),
     );
   }
 
@@ -50,6 +64,7 @@ class Voucher {
       'isActive': isActive,
       'discountType': discountType,
       'discountPercentage': discountPercentage,
+      'maxDiscountAmount': maxDiscountAmount,
     };
   }
 
@@ -61,6 +76,7 @@ class Voucher {
     bool? isActive,
     String? discountType,
     double? discountPercentage,
+    double? maxDiscountAmount,
   }) {
     return Voucher(
       code: code ?? this.code,
@@ -70,6 +86,7 @@ class Voucher {
       isActive: isActive ?? this.isActive,
       discountType: discountType ?? this.discountType,
       discountPercentage: discountPercentage ?? this.discountPercentage,
+      maxDiscountAmount: maxDiscountAmount ?? this.maxDiscountAmount,
     );
   }
 }
