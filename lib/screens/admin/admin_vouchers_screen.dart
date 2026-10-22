@@ -11,6 +11,30 @@ class AdminVouchersScreen extends StatefulWidget {
 }
 
 class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
+  void _confirmDeleteVoucher(Voucher v) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xác nhận xóa Voucher'),
+        content: Text('Bạn có chắc chắn muốn xóa vĩnh viễn mã voucher "${v.code}" không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await DataService.deleteVoucher(v.code);
+              setState(() {});
+              SnackbarHelper.showSuccess(context, 'Đã xóa voucher ${v.code}');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openEditVoucherDialog(Voucher v) {
     final descController = TextEditingController(text: v.description);
     final discountController = TextEditingController(text: v.discountAmount.toStringAsFixed(0));
@@ -217,6 +241,11 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                           icon: const Icon(Icons.edit, color: Colors.blue),
                           tooltip: 'Chỉnh sửa voucher',
                           onPressed: () => _openEditVoucherDialog(v),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          tooltip: 'Xóa voucher',
+                          onPressed: () => _confirmDeleteVoucher(v),
                         ),
                       ],
                     ),

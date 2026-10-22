@@ -365,6 +365,17 @@ class DataService {
     }
   }
 
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code == code);
+    await _saveVouchers();
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
+    }
+  }
+
   static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
     final index = vouchers.indexWhere((v) => v.code == oldCode);
     if (index != -1) {
