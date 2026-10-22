@@ -66,8 +66,42 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                   decoration: const InputDecoration(labelText: 'Mô tả khuyến mãi', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: discountController,
+                StatefulBuilder(
+                  builder: (ctx, setFieldState) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Loại giảm giá:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(height: 6),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(value: 'fixed', label: Text('Cố định (₫)'), icon: Icon(Icons.attach_money)),
+                            ButtonSegment(value: 'percentage', label: Text('Phần trăm (%)'), icon: Icon(Icons.percent)),
+                          ],
+                          selected: {discountType},
+                          onSelectionChanged: (set) {
+                            setFieldState(() => discountType = set.first);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        if (discountType == 'fixed')
+                          TextField(
+                            controller: discountController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Số tiền giảm (₫)', border: OutlineInputBorder()),
+                          )
+                        else
+                          TextField(
+                            controller: percentController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Phần trăm giảm (1 - 100%)', border: OutlineInputBorder()),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                // Field discount
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(labelText: 'Số tiền giảm (₫)', border: OutlineInputBorder()),
                 ),
@@ -109,6 +143,8 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
   void _openAddVoucherDialog() {
     final codeController = TextEditingController();
     final descController = TextEditingController();
+    String discountType = 'fixed';
+    final percentController = TextEditingController(text: '10');
     final discountController = TextEditingController(text: '20000');
     final minPurchaseController = TextEditingController(text: '100000');
 
@@ -187,7 +223,9 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                 final newVoucher = Voucher(
                   code: code,
                   description: desc.isNotEmpty ? desc : 'Giảm ${discount.toStringAsFixed(0)}₫',
-                  discountAmount: discount,
+                  discountAmount: discountType == 'fixed' ? discount : 0.0,
+                  discountPercentage: discountType == 'percentage' ? (double.tryParse(percentController.text) ?? 10.0) : 0.0,
+                  discountType: discountType,
                   minPurchase: minPurchase,
                   isActive: true,
                 );
