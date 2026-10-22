@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../../utils/snackbar_helper.dart';
 import '../../services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import '../../models/cart_item.dart';
 import '../../models/review.dart';
 import '../../services/data_service.dart';
 import 'cart_screen.dart';
+import 'review_screen.dart';
 import '../auth/login_screen.dart';
 import '../../utils/format_helper.dart';
 
@@ -374,7 +376,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   // Đánh giá từ khách hàng thực tế (Loại bỏ toàn bộ dữ liệu ảo)
                   Builder(
                     builder: (context) {
-                      final prodReviews = DataService.getReviewsForProduct(widget.product.id, widget.product.name);
+                      final rawReviews = DataService.getReviewsForProduct(widget.product.id, widget.product.name);
+                      final prodReviews = rawReviews.where((r) {
+                        if (!r.isHidden) return true;
+                        if (AuthService.isAdmin) return true;
+                        if (AuthService.userEmail != null &&
+                            (r.userEmail ?? '').toLowerCase() == AuthService.userEmail!.toLowerCase()) {
+                          return true;
+                        }
+                        return false;
+                      }).toList();
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -417,7 +429,57 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       });
                                       return;
                                     }
-                                    _showAddReviewModal(context);
+
+                                    final email = AuthService.userEmail ?? '';
+                                    final hasPurchased = DataService.hasPurchasedProduct(
+                                      email,
+                                      widget.product.id,
+                                      widget.product.name,
+                                    );
+
+                                    if (!hasPurchased) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          title: const Row(
+                                            children: [
+                                              Icon(Icons.verified_user_outlined, color: Colors.orange),
+                                              SizedBox(width: 8),
+                                              Text('Chưa thể đánh giá', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                          content: const Text(
+                                            'Chính sách đánh giá minh bạch:\nBạn chỉ có thể đánh giá và nhận xét sau khi đã mua sản phẩm này trên hệ thống.',
+                                            style: TextStyle(height: 1.4),
+                                          ),
+                                          actions: [
+                                            ElevatedButton(
+                                              onPressed: () => Navigator.pop(ctx),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.green,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              child: const Text('Đã hiểu', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ReviewScreen(
+                                          orderId: 'ORDER_PURCHASED',
+                                          productId: widget.product.id,
+                                          productName: widget.product.name,
+                                        ),
+                                      ),
+                                    ).then((val) {
+                                      if (val == true) _refreshReviews();
+                                    });
                                   },
                                   icon: const Icon(Icons.rate_review_outlined, color: Colors.green, size: 18),
                                   label: const Text('Viết đánh giá', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
@@ -455,18 +517,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ...prodReviews.asMap().entries.map((entry) {
                               final int idx = entry.key;
                               final r = entry.value;
-                              final dateStr = '${r.createdAt.day.toString().padLeft(2, '0')}/${r.createdAt.month.toString().padLeft(2, '0')}/${r.createdAt.year}';
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (idx > 0) const Divider(height: 24),
-                                  _buildReviewItem(
-                                    r.userName,
-                                    r.rating,
-                                    r.comment,
-                                    dateStr,
-                                    hasImage: r.hasImage,
-                                  ),
+                                  _buildReviewItem(r),
                                 ],
                               );
                             }),
@@ -560,242 +615,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  void _showAddReviewModal(BuildContext context) {
-    int modalRating = 5;
-    final reviewController = TextEditingController();
-    bool modalHasImage = false;
-    bool isSubmitting = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final userName = AuthService.userName ?? 'Huế Trân Võ';
-            return Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                top: 20,
-                left: 20,
-                right: 20,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Đánh giá sản phẩm',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.green.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person, color: Colors.green, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Đánh giá với tư cách: $userName',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        widget.product.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(5, (index) {
-                          return IconButton(
-                            icon: Icon(
-                              index < modalRating ? Icons.star : Icons.star_border,
-                              color: Colors.amber,
-                              size: 36,
-                            ),
-                            onPressed: () {
-                              setModalState(() {
-                                modalRating = index + 1;
-                              });
-                            },
-                          );
-                        }),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: reviewController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'Nhập đánh giá cảm nhận thực tế của bạn về sản phẩm...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.green),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    InkWell(
-                      onTap: () {
-                        setModalState(() {
-                          modalHasImage = !modalHasImage;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: modalHasImage ? Colors.green.shade50 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: modalHasImage ? Colors.green : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              modalHasImage ? Icons.check_circle : Icons.camera_alt,
-                              color: modalHasImage ? Colors.green : Colors.grey.shade700,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              modalHasImage ? 'Đã đính kèm ảnh thực tế' : 'Đính kèm ảnh minh họa',
-                              style: TextStyle(
-                                color: modalHasImage ? Colors.green : Colors.grey.shade800,
-                                fontWeight: modalHasImage ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: isSubmitting
-                            ? null
-                            : () async {
-                                final text = reviewController.text.trim();
-                                if (text.isEmpty) {
-                                  SnackbarHelper.showError(context, 'Vui lòng nhập nội dung đánh giá');
-                                  return;
-                                }
-
-                                setModalState(() => isSubmitting = true);
-
-                                final newReview = Review(
-                                  id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
-                                  productId: widget.product.id,
-                                  productName: widget.product.name,
-                                  userName: userName,
-                                  userEmail: AuthService.userEmail,
-                                  rating: modalRating,
-                                  comment: text,
-                                  createdAt: DateTime.now(),
-                                  hasImage: modalHasImage,
-                                );
-
-                                await DataService.addReview(newReview);
-
-                                if (context.mounted) {
-                                  Navigator.pop(context);
-                                  setState(() {});
-                                  SnackbarHelper.showSuccess(
-                                    context,
-                                    'Cảm ơn $userName đã đánh giá sản phẩm!',
-                                  );
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Text(
-                                'Gửi đánh giá',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildReviewItem(String name, int rating, String comment, String date, {bool hasImage = false}) {
-    final displayName = name.trim().isNotEmpty ? name.trim() : 'Khách hàng';
+  Widget _buildReviewItem(Review r) {
+    final displayName = r.userName.trim().isNotEmpty ? r.userName.trim() : 'Khách hàng';
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'K';
+    final dateStr = '${r.createdAt.day.toString().padLeft(2, '0')}/${r.createdAt.month.toString().padLeft(2, '0')}/${r.createdAt.year}';
+    final isMyReview = AuthService.userEmail != null &&
+        AuthService.userEmail!.isNotEmpty &&
+        (r.userEmail ?? '').toLowerCase() == AuthService.userEmail!.toLowerCase();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,53 +629,157 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Expanded(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.green.shade100,
+                    radius: 16,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      displayName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified, size: 12, color: Colors.green),
+                        SizedBox(width: 2),
+                        Text('Đã mua', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: Colors.green.shade100,
-                  radius: 16,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.verified, size: 12, color: Colors.green),
-                      SizedBox(width: 2),
-                      Text('Đã mua', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(dateStr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                if (isMyReview) ...[
+                  const SizedBox(width: 4),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+                    padding: EdgeInsets.zero,
+                    onSelected: (action) async {
+                      if (action == 'edit') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ReviewScreen(
+                              orderId: r.orderId ?? '',
+                              productId: widget.product.id,
+                              productName: widget.product.name,
+                              existingReview: r,
+                            ),
+                          ),
+                        ).then((val) {
+                          if (val == true) _refreshReviews();
+                        });
+                      } else if (action == 'delete') {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Xóa đánh giá'),
+                            content: const Text('Bạn có chắc chắn muốn xóa bài đánh giá này?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Hủy'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await DataService.deleteReview(r.id);
+                          await _refreshReviews();
+                          if (mounted) {
+                            SnackbarHelper.showSuccess(context, 'Đã xóa đánh giá thành công');
+                          }
+                        }
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: 18, color: Colors.blue),
+                            SizedBox(width: 8),
+                            Text('Sửa đánh giá'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Xóa đánh giá', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
+                ],
               ],
             ),
-            Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           children: List.generate(5, (index) {
             return Icon(
-              index < rating ? Icons.star : Icons.star_border,
+              index < r.rating ? Icons.star : Icons.star_border,
               size: 16,
               color: Colors.amber,
             );
           }),
         ),
-        const SizedBox(height: 8),
-        Text(comment, style: TextStyle(color: Colors.grey[800], height: 1.4)),
-        if (hasImage) ...[
-          const SizedBox(height: 12),
+        const SizedBox(height: 6),
+        Text(r.comment, style: TextStyle(color: Colors.grey[800], height: 1.4)),
+        if (r.imageUrl != null && r.imageUrl!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: r.imageUrl!.startsWith('http')
+                ? Image.network(
+                    r.imageUrl!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  )
+                : Image.file(
+                    File(r.imageUrl!),
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+          ),
+        ] else if (r.hasImage) ...[
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -862,11 +792,49 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               children: [
                 Icon(Icons.image, size: 16, color: Colors.green),
                 SizedBox(width: 6),
-                Text('Ảnh chụp thực tế từ khách hàng', style: TextStyle(color: Colors.black87, fontSize: 12)),
+                Text('Ảnh thực tế từ khách hàng', style: TextStyle(color: Colors.black87, fontSize: 12)),
               ],
             ),
-          )
-        ]
+          ),
+        ],
+        if (r.adminReply != null && r.adminReply!.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.storefront, color: Colors.green, size: 16),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Phản hồi từ Người bán',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green),
+                    ),
+                    const Spacer(),
+                    if (r.adminReplyAt != null)
+                      Text(
+                        '${r.adminReplyAt!.day.toString().padLeft(2, '0')}/${r.adminReplyAt!.month.toString().padLeft(2, '0')}/${r.adminReplyAt!.year}',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  r.adminReply!,
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

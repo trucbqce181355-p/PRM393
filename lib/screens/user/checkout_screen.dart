@@ -9,6 +9,7 @@ import 'user_home_screen.dart';
 import 'user_addresses_screen.dart';
 import '../auth/login_screen.dart';
 import '../../models/voucher.dart';
+import '../../models/app_notification.dart';
 import '../../utils/format_helper.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -381,6 +382,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final userPhone = selectedAddr['phone']?.toString() ?? (AuthService.currentUser?.phone ?? '0912345678');
 
+    final detailedItems = Cart.items.map((i) => {
+      'productId': i.product.id,
+      'productName': i.product.name,
+      'imageUrl': i.product.imageUrl,
+      'price': i.product.price,
+      'unit': i.product.unit,
+      'quantity': i.quantity,
+      'total': i.totalPrice,
+    }).toList();
+
+    // Giảm tồn kho và ghi nhận lịch sử biến động kho cho từng món
+    for (var i in Cart.items) {
+      await DataService.recordStockOut(
+        productId: i.product.id,
+        quantity: i.quantity,
+        reason: 'Khách mua đơn hàng #$orderId',
+        recipient: AuthService.userName ?? 'Khách lẻ',
+        creatorName: 'Hệ thống tự động',
+      );
+    }
+
     final order = Order(
       id: orderId,
       customerName: AuthService.userName ?? 'Khách hàng',
@@ -391,10 +413,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       itemsSummary: itemNames,
       status: OrderStatus.pending,
       createdAt: DateTime.now(),
+      items: detailedItems,
+      paymentMethod: _selectedPayment,
+      shippingMethod: _shippingMethod,
+      shippingFee: _shippingFee,
+      discountAmount: _discountAmount,
+      voucherCode: _appliedVoucherCode,
     );
 
     // Lưu vào MongoDB traicay_db thông qua DataService
     await DataService.addOrder(order);
+
+    // Gửi thông báo đến hòm thư thông báo của khách hàng
+    await DataService.addNotification(
+      AppNotification(
+        id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Đặt hàng thành công! 🎉',
+        body: 'Đơn hàng #$orderId (${FormatHelper.formatPrice(finalTotal)}) đã được tạo. Cửa hàng đang chuẩn bị trái cây tươi ngon cho bạn!',
+        type: 'order',
+        customerEmail: AuthService.userEmail,
+        orderId: orderId,
+        createdAt: DateTime.now(),
+      ),
+    );
 
     // Lưu vào StorageService cache cục bộ theo tài khoản
     await StorageService.addOrder({

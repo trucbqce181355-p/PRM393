@@ -8,6 +8,8 @@ class Customer {
   final int totalOrders;
   final bool isActive;
   final String memberTier; // Vàng, Bạc, Đồng...
+  final String? googleId;
+  final bool isGoogleLinked;
 
   Customer({
     required this.id,
@@ -19,19 +21,23 @@ class Customer {
     required this.totalOrders,
     this.isActive = true,
     this.memberTier = 'Đồng',
+    this.googleId,
+    this.isGoogleLinked = false,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     return Customer(
-      id: json['id'],
-      name: json['name'],
-      email: json['email'],
-      password: json['password'] ?? '123456',
-      phone: json['phone'] ?? '',
-      totalSpent: json['totalSpent']?.toDouble() ?? 0.0,
-      totalOrders: json['totalOrders'] ?? 0,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      password: json['password']?.toString() ?? '123456',
+      phone: json['phone']?.toString() ?? '',
+      totalSpent: (json['totalSpent'] as num?)?.toDouble() ?? 0.0,
+      totalOrders: (json['totalOrders'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] ?? true,
-      memberTier: json['memberTier'] ?? 'Đồng',
+      memberTier: json['memberTier']?.toString() ?? 'Đồng',
+      googleId: json['googleId']?.toString(),
+      isGoogleLinked: json['isGoogleLinked'] == true || (json['googleId'] != null && json['googleId'].toString().isNotEmpty),
     );
   }
 
@@ -46,6 +52,36 @@ class Customer {
       'totalOrders': totalOrders,
       'isActive': isActive,
       'memberTier': memberTier,
+      'googleId': googleId,
+      'isGoogleLinked': isGoogleLinked,
     };
+  }
+
+  Customer copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? password,
+    String? phone,
+    double? totalSpent,
+    int? totalOrders,
+    bool? isActive,
+    String? memberTier,
+    String? googleId,
+    bool? isGoogleLinked,
+  }) {
+    return Customer(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      password: password ?? this.password,
+      phone: phone ?? this.phone,
+      totalSpent: totalSpent ?? this.totalSpent,
+      totalOrders: totalOrders ?? this.totalOrders,
+      isActive: isActive ?? this.isActive,
+      memberTier: memberTier ?? this.memberTier,
+      googleId: googleId ?? this.googleId,
+      isGoogleLinked: isGoogleLinked ?? this.isGoogleLinked,
+    );
   }
 }

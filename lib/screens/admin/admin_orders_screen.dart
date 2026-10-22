@@ -3,6 +3,7 @@ import '../../models/order.dart';
 import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../utils/format_helper.dart';
+import '../user/order_detail_screen.dart';
 
 class AdminOrdersScreen extends StatefulWidget {
   const AdminOrdersScreen({super.key});
@@ -14,6 +15,13 @@ class AdminOrdersScreen extends StatefulWidget {
 class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   final TextEditingController _searchController = TextEditingController();
   OrderStatus? _selectedStatusFilter; // null = Tất cả
+
+  final List<Map<String, String>> _availableShippers = [
+    {'name': 'Nguyễn Văn Nam', 'phone': '0981.234.567', 'team': 'Đội xe nhanh Q1'},
+    {'name': 'Trần Tuấn Kiệt', 'phone': '0978.889.991', 'team': 'Xe lạnh bảo quản'},
+    {'name': 'Lê Hoàng Phúc', 'phone': '0905.123.456', 'team': 'Giao hỏa tốc 30p'},
+    {'name': 'Võ Minh Trí', 'phone': '0933.789.012', 'team': 'Đội xe ngoại thành'},
+  ];
 
   @override
   void dispose() {
@@ -30,8 +38,207 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     SnackbarHelper.showSuccess(context, 'Đơn #${order.id} chuyển sang: ${_getStatusLabel(newStatus)}');
   }
 
-  void _assignShipper(Order order) {
-    _changeOrderStatus(order, OrderStatus.delivering);
+  void _showAssignShipperDialog(Order order) {
+    Map<String, String> selected = _availableShippers.first;
+    bool useCustom = false;
+    final customNameCtrl = TextEditingController();
+    final customPhoneCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.two_wheeler, color: Colors.purple),
+              const SizedBox(width: 8),
+              Text('Gán Shipper cho đơn #${order.id}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Chọn nhân viên giao hàng thực tế:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 8),
+                ..._availableShippers.map((s) => RadioListTile<Map<String, String>>(
+                      title: Text(s['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: Text('${s['phone']} • ${s['team']}', style: const TextStyle(fontSize: 12)),
+                      value: s,
+                      groupValue: useCustom ? null : selected,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          useCustom = false;
+                          selected = val!;
+                        });
+                      },
+                    )),
+                RadioListTile<bool>(
+                  title: const Text('Shipper ngoài / Tự nhập', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  value: true,
+                  groupValue: useCustom,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (val) => setDialogState(() => useCustom = true),
+                ),
+                if (useCustom) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: customNameCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Họ tên tài xế',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: customPhoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Số điện thoại',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                String shipperName = selected['name']!;
+                String shipperPhone = selected['phone']!;
+
+                if (useCustom) {
+                  if (customNameCtrl.text.trim().isEmpty || customPhoneCtrl.text.trim().isEmpty) {
+                    SnackbarHelper.showError(context, 'Vui lòng nhập đủ họ tên và SĐT tài xế');
+                    return;
+                  }
+                  shipperName = customNameCtrl.text.trim();
+                  shipperPhone = customPhoneCtrl.text.trim();
+                }
+
+                Navigator.pop(ctx);
+                await DataService.assignShipperToOrder(
+                  orderId: order.id,
+                  shipperName: shipperName,
+                  shipperPhone: shipperPhone,
+                );
+                setState(() {
+                  order.status = OrderStatus.delivering;
+                  order.assignedShipperName = shipperName;
+                  order.assignedShipperPhone = shipperPhone;
+                });
+                if (mounted) {
+                  SnackbarHelper.showSuccess(context, 'Đã gán đơn cho shipper $shipperName ($shipperPhone)');
+                }
+              },
+              child: const Text('Xác nhận gán'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCancelOrderDialog(Order order) {
+    String selectedReason = 'Hết hàng trong kho';
+    final customReasonCtrl = TextEditingController();
+    final commonReasons = [
+      'Hết hàng trong kho',
+      'Khách yêu cầu hủy qua điện thoại',
+      'Địa chỉ giao ngoài vùng phục vụ',
+      'Không liên lạc được với khách hàng',
+      'Lý do khác',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.cancel_outlined, color: Colors.red),
+              const SizedBox(width: 8),
+              Text('Từ chối / Hủy đơn #${order.id}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Chọn lý do hủy / từ chối đơn hàng này:', style: TextStyle(fontSize: 13)),
+                const SizedBox(height: 8),
+                ...commonReasons.map((r) => RadioListTile<String>(
+                      title: Text(r, style: const TextStyle(fontSize: 13)),
+                      value: r,
+                      groupValue: selectedReason,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) => setDialogState(() => selectedReason = val!),
+                    )),
+                if (selectedReason == 'Lý do khác') ...[
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: customReasonCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Nhập lý do chi tiết...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Đóng', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                final reason = selectedReason == 'Lý do khác' && customReasonCtrl.text.trim().isNotEmpty
+                    ? customReasonCtrl.text.trim()
+                    : selectedReason;
+                Navigator.pop(ctx);
+                await DataService.cancelOrder(orderId: order.id, reason: reason);
+                setState(() {
+                  order.status = OrderStatus.cancelled;
+                  order.cancellationReason = reason;
+                });
+                if (mounted) {
+                  SnackbarHelper.showSuccess(context, 'Đã hủy đơn hàng #${order.id}');
+                }
+              },
+              child: const Text('Xác nhận từ chối'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<Order> get _filteredOrders {
@@ -378,53 +585,119 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                           fontSize: 14,
                         ),
                       ),
+                      if (order.assignedShipperName != null && order.assignedShipperName!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.purple.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.two_wheeler, size: 14, color: Colors.purple),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Shipper: ${order.assignedShipperName} (${order.assignedShipperPhone ?? ""})',
+                                style: const TextStyle(fontSize: 11, color: Colors.purple, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (order.status == OrderStatus.cancelled && order.cancellationReason != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Lý do hủy: ${order.cancellationReason}',
+                          style: const TextStyle(fontSize: 11, color: Colors.red, fontStyle: FontStyle.italic),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
 
-            if (order.status == OrderStatus.pending || order.status == OrderStatus.ready || order.status == OrderStatus.delivering) ...[
-              const Divider(height: 20, thickness: 0.8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (order.status == OrderStatus.pending)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            const Divider(height: 20, thickness: 0.8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey.shade800,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => OrderDetailScreen(order: order)),
+                    ).then((_) => setState(() {}));
+                  },
+                  icon: const Icon(Icons.receipt_long, size: 15),
+                  label: const Text('Chi tiết', style: TextStyle(fontSize: 12)),
+                ),
+
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (order.status == OrderStatus.pending || order.status == OrderStatus.ready) ...[
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        ),
+                        onPressed: () => _showCancelOrderDialog(order),
+                        child: const Text('Hủy / Từ chối', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
-                      onPressed: () => _changeOrderStatus(order, OrderStatus.ready),
-                      child: const Text('Gói xong', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  if (order.status == OrderStatus.ready)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      const SizedBox(width: 8),
+                    ],
+                    if (order.status == OrderStatus.pending)
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        onPressed: () => _changeOrderStatus(order, OrderStatus.ready),
+                        child: const Text('Gói xong', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
-                      onPressed: () => _assignShipper(order),
-                      child: const Text('Gán Shipper', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  if (order.status == OrderStatus.delivering)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    if (order.status == OrderStatus.ready)
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        onPressed: () => _showAssignShipperDialog(order),
+                        icon: const Icon(Icons.two_wheeler, size: 16),
+                        label: const Text('Gán Shipper', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
-                      onPressed: () => _changeOrderStatus(order, OrderStatus.completed),
-                      child: const Text('Xác nhận đã giao', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                ],
-              ),
-            ],
+                    if (order.status == OrderStatus.delivering)
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        onPressed: () => _changeOrderStatus(order, OrderStatus.completed),
+                        child: const Text('Xác nhận đã giao', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
       ),

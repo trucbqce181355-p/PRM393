@@ -41,8 +41,15 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
     final isEditing = voucher != null;
     final codeController = TextEditingController(text: voucher?.code ?? '');
     final descController = TextEditingController(text: voucher?.description ?? '');
+    String discountType = voucher?.discountType ?? 'fixed';
     final discountController = TextEditingController(
-      text: voucher != null ? voucher.discountAmount.toStringAsFixed(0) : '',
+      text: voucher != null ? voucher.discountAmount.toStringAsFixed(0) : '20000',
+    );
+    final percentController = TextEditingController(
+      text: voucher != null ? voucher.discountPercentage.toStringAsFixed(0) : '10',
+    );
+    final maxDiscountController = TextEditingController(
+      text: voucher != null && voucher.maxDiscountAmount > 0 ? voucher.maxDiscountAmount.toStringAsFixed(0) : '0',
     );
     final minPurchaseController = TextEditingController(
       text: voucher != null ? voucher.minPurchase.toStringAsFixed(0) : '0',
@@ -56,7 +63,9 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final currentDiscount = double.tryParse(discountController.text) ?? 0.0;
+            final currentPercent = double.tryParse(percentController.text) ?? 0.0;
             final currentMinPurchase = double.tryParse(minPurchaseController.text) ?? 0.0;
+            final currentMaxDiscount = double.tryParse(maxDiscountController.text) ?? 0.0;
 
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -89,13 +98,47 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Loại giảm giá: Tiền mặt vs Phần trăm
+                      const Text('Loại giảm giá:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(child: Text('Tiền mặt (₫)')),
+                              selected: discountType == 'fixed',
+                              selectedColor: Colors.green.shade100,
+                              labelStyle: TextStyle(
+                                color: discountType == 'fixed' ? Colors.green.shade900 : Colors.black87,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              onSelected: (_) => setDialogState(() => discountType = 'fixed'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(child: Text('Phần trăm (%)')),
+                              selected: discountType == 'percentage',
+                              selectedColor: Colors.orange.shade100,
+                              labelStyle: TextStyle(
+                                color: discountType == 'percentage' ? Colors.orange.shade900 : Colors.black87,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              onSelected: (_) => setDialogState(() => discountType = 'percentage'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
                       // Mã Voucher
                       TextField(
                         controller: codeController,
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
                           labelText: 'Mã voucher *',
-                          hintText: 'VD: WELCOME10, GIAM20K',
+                          hintText: 'VD: WELCOME10, FRUIT20',
                           prefixIcon: const Icon(Icons.confirmation_number_outlined),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -108,7 +151,7 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                         controller: descController,
                         decoration: InputDecoration(
                           labelText: 'Mô tả voucher',
-                          hintText: 'VD: Giảm 20.000₫ cho đơn hàng trái cây',
+                          hintText: 'VD: Giảm giá trái cây tươi nhập khẩu',
                           prefixIcon: const Icon(Icons.description_outlined),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -116,24 +159,70 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Số tiền giảm
-                      TextField(
-                        controller: discountController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        onChanged: (_) => setDialogState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'Số tiền giảm (₫) *',
-                          hintText: 'VD: 20000',
-                          prefixIcon: const Icon(Icons.discount_outlined),
-                          helperText: currentDiscount > 0
-                              ? 'Mức giảm: ${FormatHelper.formatPrice(currentDiscount)}'
-                              : null,
-                          helperStyle: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      // Cấu hình giảm theo loại
+                      if (discountType == 'fixed') ...[
+                        TextField(
+                          controller: discountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (_) => setDialogState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Số tiền giảm cố định (₫) *',
+                            hintText: 'VD: 20000',
+                            prefixIcon: const Icon(Icons.discount_outlined),
+                            helperText: currentDiscount > 0
+                                ? 'Mức giảm: ${FormatHelper.formatPrice(currentDiscount)}'
+                                : null,
+                            helperStyle: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          ),
                         ),
-                      ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: percentController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                onChanged: (_) => setDialogState(() {}),
+                                decoration: InputDecoration(
+                                  labelText: '% Giảm giá *',
+                                  hintText: 'VD: 15',
+                                  suffixText: '%',
+                                  prefixIcon: const Icon(Icons.percent),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: maxDiscountController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                onChanged: (_) => setDialogState(() {}),
+                                decoration: InputDecoration(
+                                  labelText: 'Giảm tối đa (₫)',
+                                  hintText: '0 = Không giới hạn',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (currentPercent > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 4),
+                            child: Text(
+                              'Giảm $currentPercent%${currentMaxDiscount > 0 ? " (Tối đa ${FormatHelper.formatPrice(currentMaxDiscount)})" : ""}',
+                              style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                      ],
                       const SizedBox(height: 14),
 
                       // Đơn tối thiểu
@@ -215,6 +304,8 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                     final code = codeController.text.trim().toUpperCase();
                     final desc = descController.text.trim();
                     final discount = double.tryParse(discountController.text) ?? 0.0;
+                    final percent = double.tryParse(percentController.text) ?? 0.0;
+                    final maxDiscount = double.tryParse(maxDiscountController.text) ?? 0.0;
                     final minPurchase = double.tryParse(minPurchaseController.text) ?? 0.0;
 
                     if (code.isEmpty) {
@@ -232,17 +323,29 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                       return;
                     }
 
-                    if (discount <= 0) {
+                    if (discountType == 'fixed' && discount <= 0) {
                       SnackbarHelper.showError(context, 'Số tiền giảm phải lớn hơn 0');
+                      return;
+                    }
+
+                    if (discountType == 'percentage' && (percent <= 0 || percent > 100)) {
+                      SnackbarHelper.showError(context, 'Phần trăm giảm phải từ 1% đến 100%');
                       return;
                     }
 
                     final newVoucher = Voucher(
                       code: code,
-                      description: desc.isNotEmpty ? desc : 'Giảm ${FormatHelper.formatPrice(discount)}',
+                      description: desc.isNotEmpty
+                          ? desc
+                          : (discountType == 'percentage'
+                              ? 'Giảm $percent% cho đơn từ ${FormatHelper.formatPrice(minPurchase)}'
+                              : 'Giảm ${FormatHelper.formatPrice(discount)} cho đơn từ ${FormatHelper.formatPrice(minPurchase)}'),
                       discountAmount: discount,
                       minPurchase: minPurchase,
                       isActive: isActive,
+                      discountType: discountType,
+                      discountPercentage: percent,
+                      maxDiscountAmount: maxDiscount,
                     );
 
                     Navigator.pop(dialogContext);
@@ -627,7 +730,9 @@ class _AdminVouchersScreenState extends State<AdminVouchersScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Giảm: ${FormatHelper.formatPrice(voucher.discountAmount)}',
+                          voucher.discountType == 'percentage'
+                              ? 'Giảm: ${voucher.discountPercentage.toStringAsFixed(0)}%${voucher.maxDiscountAmount > 0 ? " (Tối đa ${FormatHelper.formatPrice(voucher.maxDiscountAmount)})" : ""}'
+                              : 'Giảm: ${FormatHelper.formatPrice(voucher.discountAmount)}',
                           style: TextStyle(
                             color: voucher.isActive ? Colors.green.shade700 : Colors.grey.shade600,
                             fontWeight: FontWeight.bold,

@@ -82,9 +82,56 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          isAdmin ? 'admin@gmail.com • Quản trị viên' : 'Thành viên Vàng',
-                          style: const TextStyle(fontSize: 14, color: Colors.white70),
+                        Builder(
+                          builder: (context) {
+                            if (isAdmin) {
+                              return const Text(
+                                'admin@gmail.com • Quản trị viên',
+                                style: TextStyle(fontSize: 14, color: Colors.white70),
+                              );
+                            }
+                            final customer = AuthService.currentUser;
+                            final tier = customer?.memberTier ?? 'Đồng';
+                            final email = customer?.email ?? AuthService.userEmail ?? 'Chưa đăng nhập';
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  email,
+                                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        tier == 'Vàng'
+                                            ? Icons.workspace_premium
+                                            : (tier == 'Bạc' ? Icons.military_tech : Icons.stars),
+                                        size: 14,
+                                        color: Colors.amberAccent,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Hạng $tier',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -105,7 +152,68 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
+
+            // Customer Stats Card (if logged in customer)
+            if (!isAdmin && AuthService.currentUser != null)
+              Builder(
+                builder: (context) {
+                  final customer = AuthService.currentUser!;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Text('Hạng thành viên', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              customer.memberTier,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange),
+                            ),
+                          ],
+                        ),
+                        Container(width: 1, height: 30, color: Colors.grey.shade200),
+                        Column(
+                          children: [
+                            const Text('Tổng chi tiêu', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${customer.totalSpent.toStringAsFixed(0)}₫',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green),
+                            ),
+                          ],
+                        ),
+                        Container(width: 1, height: 30, color: Colors.grey.shade200),
+                        Column(
+                          children: [
+                            const Text('Tổng đơn hàng', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${customer.totalOrders}',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 20),
 
             // Menu Items
             Container(
@@ -456,8 +564,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              AuthService.logout();
+            onPressed: () async {
+              await AuthService.logout();
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const UserHomeScreen()),
