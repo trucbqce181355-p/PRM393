@@ -11,6 +11,8 @@ class DataService {
   static List<Product> products = [];
   static List<Order> orders = [];
   static List<Voucher> vouchers = [];
+  static List<ChatMessage> chatMessages = [];
+  static Set<String> closedConversations = {};
   static List<Customer> customers = [];
   static List<Category> categories = [];
 
@@ -256,6 +258,24 @@ class DataService {
 
   static Future<void> _saveProducts() async {
     await _box.put('products', products.map((e) => e.toJson()).toList());
+  }
+
+  static Future<void> sendChatMessage(ChatMessage message) async {
+    chatMessages.add(message);
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.insertOne(message.toJson());
+    } catch (e) {
+      print("MongoDB Error (sendChatMessage): $e");
+    }
+  }
+
+  static Future<void> _saveChatMessages() async {
+    if (_box.isOpen) {
+      final jsonList = chatMessages.map((m) => m.toJson()).toList();
+      await _box.put('chat_messages', jsonList);
+    }
   }
 
   static Future<void> _saveVouchers() async {
