@@ -289,9 +289,27 @@ class DataService {
     return msgs;
   }
 
+  static void _triggerAutoReplyIfNeeded(String conversationId, String customerName) {
+    Future.delayed(const Duration(milliseconds: 600), () async {
+      final autoReply = ChatMessage(
+        id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+        conversationId: conversationId,
+        senderEmail: 'support@fruitopia.vn',
+        senderName: 'Fruitopia CSKH',
+        senderRole: 'admin',
+        message: 'Chào ${customerName}, chuyên viên tư vấn Fruitopia đã nhận được yêu cầu của bạn và sẽ phản hồi trong giây lát!',
+        createdAt: DateTime.now(),
+      );
+      await sendChatMessage(autoReply);
+    });
+  }
+
   static Future<void> sendChatMessage(ChatMessage message) async {
     chatMessages.add(message);
     await _saveChatMessages();
+    if (message.senderRole == 'user') {
+      _triggerAutoReplyIfNeeded(message.conversationId, message.senderName);
+    }
     try {
       var col = MongoDBService.getCollection("chat_messages");
       await col.insertOne(message.toJson());
