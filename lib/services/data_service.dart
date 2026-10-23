@@ -260,6 +260,29 @@ class DataService {
     await _box.put('products', products.map((e) => e.toJson()).toList());
   }
 
+  static List<ChatConversation> getAllConversations() {
+    final Map<String, List<ChatMessage>> grouped = {};
+    for (var m in chatMessages) {
+      grouped.putIfAbsent(m.conversationId, () => []).add(m);
+    }
+    final List<ChatConversation> list = [];
+    grouped.forEach((convId, msgs) {
+      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final lastMsg = msgs.last;
+      list.add(ChatConversation(
+        conversationId: convId,
+        customerName: msgs.firstWhere((m) => m.senderRole == 'user', orElse: () => lastMsg).senderName,
+        customerEmail: convId,
+        lastMessage: lastMsg.message,
+        lastMessageTime: lastMsg.createdAt,
+        unreadCount: msgs.where((m) => m.senderRole == 'user').length,
+        isClosed: closedConversations.contains(convId.toLowerCase()),
+      ));
+    });
+    list.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    return list;
+  }
+
   static Future<void> sendChatMessage(ChatMessage message) async {
     chatMessages.add(message);
     await _saveChatMessages();
