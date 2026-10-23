@@ -108,7 +108,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                   color: Colors.green,
                   onRefresh: _loadUserOrders,
                   child: DefaultTabController(
-                    length: 3,
+                    length: 4,
                     child: Column(
                       children: [
                         Container(
@@ -122,6 +122,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                               Tab(text: 'Đang xử lý'),
                               Tab(text: 'Đang giao'),
                               Tab(text: 'Đã hoàn thành'),
+                              Tab(text: 'Đã hủy'),
                             ],
                           ),
                         ),
@@ -131,6 +132,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                               _buildOrderList(_allOrders.where((o) => o['status'] == 'Đang xử lý').toList(), 'Chưa có đơn hàng nào đang xử lý'),
                               _buildOrderList(_allOrders.where((o) => o['status'] == 'Đang giao' || o['status'] == 'Đã gói xong').toList(), 'Chưa có đơn hàng nào đang giao'),
                               _buildOrderList(_allOrders.where((o) => o['status'] == 'Đã hoàn thành').toList(), 'Chưa có đơn hàng nào đã hoàn thành'),
+                              _buildOrderList(_allOrders.where((o) => o['status'] == 'Đã hủy').toList(), 'Chưa có đơn hàng nào đã hủy'),
                             ],
                           ),
                         ),
@@ -228,6 +230,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
         final status = order['status']?.toString() ?? 'Đang xử lý';
         final isCompleted = status == 'Đã hoàn thành';
         final isDelivering = status == 'Đang giao' || status == 'Đã gói xong';
+        final isCancelled = status == 'Đã hủy';
 
         final orderId = order['id']?.toString() ?? '';
 
@@ -252,7 +255,9 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                         decoration: BoxDecoration(
                           color: isCompleted
                               ? Colors.green.shade50
-                              : (isDelivering ? Colors.blue.shade50 : Colors.orange.shade50),
+                              : (isDelivering
+                                  ? Colors.blue.shade50
+                                  : (isCancelled ? Colors.red.shade50 : Colors.orange.shade50)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -260,7 +265,9 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                           style: TextStyle(
                             color: isCompleted
                                 ? Colors.green
-                                : (isDelivering ? Colors.blue : Colors.orange),
+                                : (isDelivering
+                                    ? Colors.blue
+                                    : (isCancelled ? Colors.red.shade700 : Colors.orange.shade800)),
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -275,10 +282,14 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                         width: 54,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: isCancelled ? Colors.red.shade50 : Colors.green.shade50,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.shopping_bag, color: Colors.green, size: 28),
+                        child: Icon(
+                          isCancelled ? Icons.cancel_outlined : Icons.shopping_bag,
+                          color: isCancelled ? Colors.red : Colors.green,
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(

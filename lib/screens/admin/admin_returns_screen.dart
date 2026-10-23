@@ -183,23 +183,27 @@ class _AdminReturnsScreenState extends State<AdminReturnsScreen> {
         foregroundColor: Colors.black87,
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Filter Tabs
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip('all', 'Tất cả (${DataService.returnRequests.length})'),
-                const SizedBox(width: 8),
-                _buildFilterChip('pending', 'Chờ xử lý ($pendingCount)'),
-                const SizedBox(width: 8),
-                _buildFilterChip('approved', 'Đã duyệt'),
-                const SizedBox(width: 8),
-                _buildFilterChip('rejected', 'Đã từ chối'),
-                const SizedBox(width: 8),
-                _buildFilterChip('cancelled', 'Đã hủy'),
-              ],
+          SizedBox(
+            width: double.infinity,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  _buildFilterChip('all', 'Tất cả (${DataService.returnRequests.length})'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('pending', 'Chờ xử lý ($pendingCount)'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('approved', 'Đã duyệt'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('rejected', 'Đã từ chối'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('cancelled', 'Đã hủy'),
+                ],
+              ),
             ),
           ),
 

@@ -4,6 +4,7 @@ import 'checkout_screen.dart';
 import '../../utils/format_helper.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
+import '../../utils/app_image_helper.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -151,17 +152,11 @@ class _CartScreenState extends State<CartScreen> {
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    item.product.imageUrl,
+                                  child: AppImageHelper.buildImage(
+                                    imageUrl: item.product.imageUrl,
                                     width: 80,
                                     height: 80,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
-                                      width: 80,
-                                      height: 80,
-                                      color: Colors.grey[200],
-                                      child: const Icon(Icons.image_not_supported),
-                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 16),

@@ -10,6 +10,7 @@ import 'cart_screen.dart';
 import 'review_screen.dart';
 import '../auth/login_screen.dart';
 import '../../utils/format_helper.dart';
+import '../../utils/app_image_helper.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
@@ -50,22 +51,59 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        scrolledUnderElevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 20),
+              tooltip: 'Quay lại',
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
         actions: [
           if (!AuthService.isAdmin) ...[
-            IconButton(
-              icon: Cart.items.isEmpty 
-                ? const Icon(Icons.shopping_cart_outlined)
-                : Badge(
-                    label: Text('${Cart.items.length}'),
-                    backgroundColor: Colors.red,
-                    child: const Icon(Icons.shopping_cart_outlined),
-                  ),
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
-              },
+            Padding(
+              padding: const EdgeInsets.only(right: 12, top: 6, bottom: 6),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Cart.items.isEmpty 
+                    ? const Icon(Icons.shopping_cart_outlined, color: Colors.black87, size: 20)
+                    : Badge(
+                        label: Text('${Cart.items.length}'),
+                        backgroundColor: Colors.red,
+                        child: const Icon(Icons.shopping_cart_outlined, color: Colors.black87, size: 20),
+                      ),
+                  tooltip: 'Giỏ hàng',
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
+                  },
+                ),
+              ),
             ),
-            const SizedBox(width: 8),
           ],
         ],
       ),
@@ -81,10 +119,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               decoration: BoxDecoration(
                 color: Colors.grey[200],
               ),
-              child: Image.network(
-                widget.product.imageUrl,
+              child: AppImageHelper.buildImage(
+                imageUrl: widget.product.imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Center(
+                errorWidget: const Center(
                   child: Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
                 ),
               ),

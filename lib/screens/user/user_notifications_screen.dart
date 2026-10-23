@@ -110,23 +110,28 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
         ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip('all', 'Tất cả'),
-                const SizedBox(width: 8),
-                _buildFilterChip('order', 'Đơn hàng'),
-                const SizedBox(width: 8),
-                _buildFilterChip('return', 'Đổi trả'),
-                const SizedBox(width: 8),
-                _buildFilterChip('promo', 'Khuyến mãi'),
-                const SizedBox(width: 8),
-                _buildFilterChip('system', 'Hệ thống'),
-              ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  _buildFilterChip('all', 'Tất cả'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('order', 'Đơn hàng'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('return', 'Đổi trả'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('promo', 'Khuyến mãi'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('system', 'Hệ thống'),
+                ],
+              ),
             ),
           ),
 

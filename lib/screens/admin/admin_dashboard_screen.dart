@@ -3,6 +3,7 @@ import '../user/user_home_screen.dart';
 import '../../services/data_service.dart';
 import '../../services/auth_service.dart';
 import '../../utils/format_helper.dart';
+import '../../models/order.dart';
 import 'admin_orders_screen.dart';
 import 'admin_vouchers_screen.dart';
 import 'admin_products_screen.dart';
@@ -12,6 +13,7 @@ import 'admin_categories_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_returns_screen.dart';
 import 'admin_chat_screen.dart';
+import 'admin_banners_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -25,12 +27,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final activeProducts = DataService.products.where((p) => p.isDeleted != true).length;
     final activeVouchers = DataService.vouchers.where((v) => v.isActive).length;
-    final totalCustomers = DataService.customers.length;
     final totalOrders = DataService.orders.length;
-    final pendingReturns = DataService.returnRequests.where((r) => r.status == 'pending').length;
     final lowStockCount = DataService.getLowStockProducts(10).length;
-    final unrepliedReviews = DataService.reviews.where((r) => r.adminReply == null || r.adminReply!.trim().isEmpty).length;
-    final unreadChatCount = DataService.chatMessages.where((m) => !m.isRead && m.senderRole == 'user').length;
+    final validOrders = DataService.orders.where((o) => o.status != OrderStatus.cancelled).toList();
+    final realRevenue = validOrders.fold<double>(0.0, (sum, o) => sum + o.totalAmount);
+    final pendingOrdersCount = DataService.orders.where((o) => o.status == OrderStatus.pending).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FA),
@@ -156,6 +157,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: _buildDrawerItem(Icons.view_carousel_rounded, 'Banner theo mùa', false, () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminBannersScreen()));
+              }),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               child: _buildDrawerItem(Icons.support_agent_rounded, 'Hỗ trợ & Chat trực tuyến', false, () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminChatScreen()));
@@ -226,9 +234,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 Expanded(
                   child: _buildSummaryCard(
-                    'Doanh thu tháng',
-                    FormatHelper.formatPrice(28450000),
-                    '+12.5%',
+                    'Doanh thu',
+                    FormatHelper.formatPrice(realRevenue),
+                    validOrders.isNotEmpty ? '${validOrders.length} đơn hợp lệ' : 'Chưa có doanh thu',
                     Colors.green.shade700,
                     Icons.monetization_on_rounded,
                   ),
@@ -237,8 +245,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Expanded(
                   child: _buildSummaryCard(
                     'Đơn hàng',
-                    totalOrders > 0 ? '$totalOrders' : '1.892',
-                    '+8.1%',
+                    '$totalOrders',
+                    pendingOrdersCount > 0 ? '$pendingOrdersCount đơn chờ xử lý' : 'Tất cả đơn hàng',
                     Colors.blue.shade700,
                     Icons.shopping_bag_rounded,
                   ),
@@ -269,97 +277,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ],
             ),
-
-            const SizedBox(height: 24),
-            const Text(
-              'Chức năng quản trị hệ thống',
-              style: TextStyle(
-                color: Colors.black87,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Feature Grid Cards
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.25,
-              children: [
-                _buildActionCard(
-                  title: 'Quản lý kho hàng',
-                  subtitle: lowStockCount > 0 ? '$lowStockCount cảnh báo hết hàng' : '5 chức năng: Nhập/Xuất/Kiểm kê',
-                  icon: Icons.warehouse_rounded,
-                  color: Colors.indigo,
-                  badge: lowStockCount > 0 ? '$lowStockCount' : null,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminInventoryScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Quản lý đơn hàng',
-                  subtitle: 'Gói xong / Gán Shipper / Hủy đơn',
-                  icon: Icons.local_shipping_rounded,
-                  color: Colors.teal,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOrdersScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Khiếu nại & Đổi trả',
-                  subtitle: pendingReturns > 0 ? '$pendingReturns yêu cầu chờ duyệt' : 'Xử lý đổi trả hoàn tiền',
-                  icon: Icons.assignment_return_rounded,
-                  color: Colors.deepOrange,
-                  badge: pendingReturns > 0 ? '$pendingReturns' : null,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminReturnsScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Đánh giá & Phản hồi',
-                  subtitle: unrepliedReviews > 0 ? '$unrepliedReviews chưa trả lời' : 'Ẩn review, trả lời đánh giá',
-                  icon: Icons.rate_review_rounded,
-                  color: Colors.amber.shade800,
-                  badge: unrepliedReviews > 0 ? '$unrepliedReviews' : null,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminReviewsScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Danh mục sản phẩm',
-                  subtitle: '${DataService.categories.length} phân loại trái cây',
-                  icon: Icons.category_rounded,
-                  color: Colors.blue,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminCategoriesScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Voucher & Giảm giá',
-                  subtitle: 'Cấu hình % hoặc tiền mặt',
-                  icon: Icons.local_offer_rounded,
-                  color: Colors.pink,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminVouchersScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Quản lý sản phẩm',
-                  subtitle: '$activeProducts mặt hàng đang kinh doanh',
-                  icon: Icons.apple_rounded,
-                  color: Colors.green.shade700,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminProductsScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Hỗ trợ & Chat CSKH',
-                  subtitle: unreadChatCount > 0 ? '$unreadChatCount tin nhắn mới cần trả lời' : 'Chat trực tuyến, tư vấn khách',
-                  icon: Icons.support_agent_rounded,
-                  color: Colors.cyan.shade800,
-                  badge: unreadChatCount > 0 ? '$unreadChatCount' : null,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminChatScreen())),
-                ),
-                _buildActionCard(
-                  title: 'Quản lý khách hàng',
-                  subtitle: '$totalCustomers tài khoản thành viên',
-                  icon: Icons.people_alt_rounded,
-                  color: Colors.purple,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminCustomersScreen())),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -436,84 +353,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildActionCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    String? badge,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                if (badge != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      badge,
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

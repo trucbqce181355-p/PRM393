@@ -152,4 +152,39 @@ class StorageService {
     methods.add(method);
     await savePaymentMethods(methods);
   }
+
+  static Future<void> updatePaymentMethod(int index, Map<String, dynamic> updatedMethod) async {
+    final methods = getPaymentMethods();
+    if (index >= 0 && index < methods.length) {
+      if (updatedMethod['isDefault'] == true) {
+        for (var m in methods) {
+          m['isDefault'] = false;
+        }
+      }
+      methods[index] = updatedMethod;
+      await savePaymentMethods(methods);
+    }
+  }
+
+  static Future<void> deletePaymentMethod(int index) async {
+    final methods = getPaymentMethods();
+    if (index >= 0 && index < methods.length) {
+      final wasDefault = methods[index]['isDefault'] == true;
+      methods.removeAt(index);
+      if (wasDefault && methods.isNotEmpty) {
+        methods[0]['isDefault'] = true;
+      }
+      await savePaymentMethods(methods);
+    }
+  }
+
+  static Future<void> setDefaultPaymentMethod(int index) async {
+    final methods = getPaymentMethods();
+    if (index >= 0 && index < methods.length) {
+      for (int i = 0; i < methods.length; i++) {
+        methods[i]['isDefault'] = (i == index);
+      }
+      await savePaymentMethods(methods);
+    }
+  }
 }

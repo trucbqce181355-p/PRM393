@@ -3,6 +3,7 @@ import '../../models/product.dart';
 import '../../services/data_service.dart';
 import '../../utils/format_helper.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../utils/app_image_helper.dart';
 
 class AdminInventoryScreen extends StatefulWidget {
   const AdminInventoryScreen({super.key});
@@ -688,12 +689,12 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> with Single
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    p.imageUrl,
+                                  child: AppImageHelper.buildImage(
+                                    imageUrl: p.imageUrl,
                                     width: 50,
                                     height: 50,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
+                                    errorWidget: Container(
                                       width: 50,
                                       height: 50,
                                       color: Colors.green.shade50,

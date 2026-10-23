@@ -17,10 +17,8 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   OrderStatus? _selectedStatusFilter; // null = Tất cả
 
   final List<Map<String, String>> _availableShippers = [
-    {'name': 'Nguyễn Văn Nam', 'phone': '0981.234.567', 'team': 'Đội xe nhanh Q1'},
-    {'name': 'Trần Tuấn Kiệt', 'phone': '0978.889.991', 'team': 'Xe lạnh bảo quản'},
-    {'name': 'Lê Hoàng Phúc', 'phone': '0905.123.456', 'team': 'Giao hỏa tốc 30p'},
-    {'name': 'Võ Minh Trí', 'phone': '0933.789.012', 'team': 'Đội xe ngoại thành'},
+    {'name': 'Chang Chih An', 'phone': '0981.234.567', 'team': 'Đội xe nhanh Q1'},
+    {'name': 'Bùi Quang Trực', 'phone': '0978.889.991', 'team': 'Xe lạnh bảo quản'},
   ];
 
   @override
@@ -732,23 +730,11 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
             const SizedBox(height: 6),
             Text(
               isSearching
-                  ? 'Hãy thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc.'
+                  ? 'Hãy thử tìm kiếm với từ khóa khác.'
                   : 'Đơn hàng mới của khách sẽ xuất hiện tại đây.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
             ),
-            const SizedBox(height: 20),
-            if (isSearching)
-              OutlinedButton.icon(
-                icon: const Icon(Icons.refresh),
-                label: const Text('Đặt lại bộ lọc'),
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() {
-                    _selectedStatusFilter = null;
-                  });
-                },
-              ),
           ],
         ),
       ),

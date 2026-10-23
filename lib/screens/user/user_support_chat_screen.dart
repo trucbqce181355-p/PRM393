@@ -33,8 +33,10 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
   void initState() {
     super.initState();
     _markRead();
-    // Khởi tạo tin nhắn chào nếu chưa có tin nhắn nào
-    _checkInitialGreeting();
+    // Xóa tin nhắn mẫu khởi tạo cũ nếu có
+    DataService.chatMessages.removeWhere(
+      (m) => m.conversationId.toLowerCase() == _conversationId.toLowerCase() && m.id.startsWith('msg_init_'),
+    );
 
     // Timer realtime 2s để làm mới tin nhắn mới
     _pollingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
@@ -42,23 +44,6 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
         setState(() {});
       }
     });
-  }
-
-  void _checkInitialGreeting() {
-    final existing = DataService.getMessagesForConversation(_conversationId);
-    if (existing.isEmpty) {
-      final welcomeMsg = ChatMessage(
-        id: 'msg_init_${DateTime.now().millisecondsSinceEpoch}',
-        conversationId: _conversationId,
-        senderEmail: 'support@fruitopia.vn',
-        senderName: 'CSKH Fruitopia',
-        senderRole: 'admin',
-        message: 'Xin chào $_userName! Fruitopia rất hân hạnh được hỗ trợ bạn. Bạn cần tư vấn chọn trái cây hay hỗ trợ đơn hàng nào ạ?',
-        createdAt: DateTime.now(),
-        isRead: true,
-      );
-      DataService.sendChatMessage(welcomeMsg);
-    }
   }
 
   void _markRead() {
@@ -219,6 +204,32 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
     );
   }
 
+  void _confirmClearConversation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xóa lịch sử trò chuyện?'),
+        content: const Text('Toàn bộ tin nhắn trong cuộc trò chuyện này sẽ bị xóa. Bạn có chắc chắn không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await DataService.clearConversationMessages(_conversationId);
+              setState(() {});
+              if (mounted) {
+                SnackbarHelper.showSuccess(context, 'Đã xóa lịch sử trò chuyện');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final rawMessages = DataService.getMessagesForConversation(_conversationId);
@@ -329,6 +340,8 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
                 SnackbarHelper.showSuccess(context, 'Đã mở lại cuộc trò chuyện');
               } else if (val == 'return') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const UserReturnsScreen()));
+              } else if (val == 'clear') {
+                _confirmClearConversation();
               }
             },
             itemBuilder: (ctx) => [
@@ -364,74 +377,22 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
                   ],
                 ),
               ),
+              const PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    SizedBox(width: 10),
+                    Text('Xóa lịch sử tin nhắn'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
       ),
       body: Column(
         children: [
-          // Quick Action Suggestion Chips
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildQuickActionChip(
-                    icon: Icons.assignment_return_rounded,
-                    label: 'Yêu cầu đổi trả',
-                    color: Colors.deepOrange,
-                    onTap: () {
-                      _sendMessage(
-                        customText: 'Tôi muốn yêu cầu đổi trả / khiếu nại chất lượng sản phẩm.',
-                        type: 'return_request',
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildQuickActionChip(
-                    icon: Icons.local_shipping_outlined,
-                    label: 'Tra cứu đơn hàng',
-                    color: Colors.blue,
-                    onTap: () {
-                      _sendMessage(
-                        customText: 'Cho tôi hỏi tình trạng giao hàng của đơn hàng gần nhất.',
-                        type: 'support_request',
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildQuickActionChip(
-                    icon: Icons.eco_outlined,
-                    label: 'Tư vấn quả tươi',
-                    color: Colors.green,
-                    onTap: () {
-                      _sendMessage(
-                        customText: 'Hôm nay Fruitopia có loại trái cây nhập khẩu nào mới về ngon nhất?',
-                        type: 'support_request',
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildQuickActionChip(
-                    icon: Icons.help_outline,
-                    label: 'Chính sách bảo hành',
-                    color: Colors.purple,
-                    onTap: () {
-                      _sendMessage(
-                        customText: 'Fruitopia có cam kết đổi trả 100% trong 24 giờ không?',
-                        type: 'support_request',
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const Divider(height: 1),
-
           // Message List
           Expanded(
             child: messages.isEmpty
@@ -537,37 +498,6 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
-            ),
-          ],
-        ),
       ),
     );
   }

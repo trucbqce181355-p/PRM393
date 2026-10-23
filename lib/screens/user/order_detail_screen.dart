@@ -5,6 +5,7 @@ import '../../utils/format_helper.dart';
 import '../../utils/snackbar_helper.dart';
 import 'user_returns_screen.dart';
 import 'user_support_chat_screen.dart';
+import '../../utils/app_image_helper.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final Order order;
@@ -529,15 +530,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: img.isNotEmpty
-                          ? Image.network(
-                              img,
-                              width: 55,
-                              height: 55,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildFallbackImg(),
-                            )
-                          : _buildFallbackImg(),
+                      child: AppImageHelper.buildImage(
+                        imageUrl: img,
+                        width: 55,
+                        height: 55,
+                        fit: BoxFit.cover,
+                        errorWidget: _buildFallbackImg(),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

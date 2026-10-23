@@ -227,6 +227,7 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
                   controller: _searchController,
@@ -253,9 +254,11 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
                 ),
                 const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+                SizedBox(
+                  width: double.infinity,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                     children: [
                       FilterChip(
                         label: const Text('Tất cả sao', style: TextStyle(fontSize: 12)),
@@ -284,6 +287,7 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
                       }),
                     ],
                   ),
+                ),
                 ),
               ],
             ),

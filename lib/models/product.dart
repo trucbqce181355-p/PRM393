@@ -31,17 +31,17 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'],
-      name: json['name'],
-      description: json['description'],
-      price: json['price']?.toDouble() ?? 0.0,
-      unit: json['unit'] ?? 'kg',
-      imageUrl: json['imageUrl'] ?? '',
-      rating: json['rating']?.toDouble() ?? 5.0,
-      stock: json['stock'] ?? 100,
-      category: json['category'] ?? 'Khác',
-      origin: json['origin'] ?? 'Việt Nam',
-      freshness: json['freshness'] ?? '100% Tươi mới trong ngày',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit']?.toString() ?? 'kg',
+      imageUrl: json['imageUrl']?.toString() ?? '',
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      stock: (json['stock'] as num?)?.toInt() ?? 100,
+      category: json['category']?.toString() ?? 'Khác',
+      origin: json['origin']?.toString() ?? 'Việt Nam',
+      freshness: json['freshness']?.toString() ?? '100% Tươi mới trong ngày',
       isActive: json['isActive'] ?? true,
       isDeleted: json['isDeleted'] ?? false,
     );

@@ -10,6 +10,7 @@ import '../models/return_request.dart';
 import '../models/app_notification.dart';
 import '../models/stock_transaction.dart';
 import '../models/chat_message.dart';
+import '../models/seasonal_banner.dart';
 import 'mongodb_service.dart';
 
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
@@ -20,6 +21,7 @@ class DataService {
   static List<Voucher> vouchers = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
+  static List<SeasonalBanner> banners = [];
   static List<Review> reviews = [];
   static List<ReturnRequest> returnRequests = [];
   static List<AppNotification> notifications = [];
@@ -38,6 +40,42 @@ class DataService {
     _loadData();
     await _syncFromMongoDB();
   }
+
+  static List<SeasonalBanner> get defaultBanners => [
+    SeasonalBanner(
+      id: 'b1',
+      badge: 'MÙA VÀNG NHIỆT ĐỚI',
+      title: 'Trái Cây Nhiệt Đới Tươi Mát',
+      subtitle: 'Xoài Cát Chu, Sầu Riêng Ri6 ngọt béo vừa hái',
+      tag: 'ƯU ĐÃI ĐẾN 25%',
+      category: 'Trái Cây Nhiệt Đới',
+      image: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=800',
+      colorStart: 0xFFE65100,
+      colorEnd: 0xFFFF9800,
+    ),
+    SeasonalBanner(
+      id: 'b2',
+      badge: 'NHẬP KHẨU CAO CẤP',
+      title: 'Táo Envy New Zealand Tươi Giòn',
+      subtitle: 'Nhập khẩu đường bay, thịt giòn tan, vị ngọt đậm',
+      tag: 'CHUẨN GLOBALGAP',
+      category: 'Trái Cây Nhập Khẩu',
+      image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=800',
+      colorStart: 0xFF880E4F,
+      colorEnd: 0xFFE91E63,
+    ),
+    SeasonalBanner(
+      id: 'b3',
+      badge: 'THU HOẠCH HỮU CƠ',
+      title: 'Trái Cây Theo Mùa Tươi Rót',
+      subtitle: 'Nho Mẫu Đơn & Cam Cara ruột đỏ mọng nước',
+      tag: 'FREESHIP TOÀN QUỐC',
+      category: 'Trái Cây Theo Mùa',
+      image: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&q=80&w=800',
+      colorStart: 0xFF1B5E20,
+      colorEnd: 0xFF4CAF50,
+    ),
+  ];
 
   static List<Product> get defaultProducts => [
     Product(
@@ -211,6 +249,17 @@ class DataService {
       _saveCategories();
     }
 
+    // Tải Banners
+    final bannersData = _box.get('banners');
+    if (bannersData != null && bannersData is List && bannersData.isNotEmpty) {
+      banners = bannersData
+          .map((e) => SeasonalBanner.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } else {
+      banners = List.from(defaultBanners);
+      _saveBanners();
+    }
+
     // Tải Orders từ local cache (chỉ đơn hàng thực tế, loại bỏ dữ liệu mẫu)
     final ordersData = _box.get('orders');
     if (ordersData != null && ordersData is List) {
@@ -379,6 +428,16 @@ class DataService {
       categories = remoteCategories.map((e) => Category.fromJson(e)).toList();
       await _saveCategories();
 
+      var colBanners = MongoDBService.getCollection("banners");
+      var remoteBanners = await colBanners.find().toList();
+      if (remoteBanners.isEmpty) {
+        final defBanners = defaultBanners.map((e) => e.toJson()).toList();
+        await colBanners.insertAll(defBanners);
+        remoteBanners = defBanners;
+      }
+      banners = remoteBanners.map((e) => SeasonalBanner.fromJson(e)).toList();
+      await _saveBanners();
+
       // Đồng bộ đơn hàng thực tế từ MongoDB traicay_db
       var colOrders = MongoDBService.getCollection("orders");
       var remoteOrders = await colOrders.find().toList();
@@ -389,6 +448,11 @@ class DataService {
       orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       await _saveOrders();
       print("Đã đồng bộ ${orders.length} đơn hàng từ MongoDB traicay_db");
+
+      // Cập nhật lại chính xác tổng chi tiêu (loại trừ các đơn đã hủy)
+      for (var c in customers) {
+        await syncCustomerSpending(c.email);
+      }
 
       // Đồng bộ đánh giá thực tế từ MongoDB traicay_db (loại bỏ dữ liệu ảo)
       var colReviews = MongoDBService.getCollection("reviews");
@@ -464,6 +528,12 @@ class DataService {
   static Future<void> _saveCategories() async {
     try {
       await _box.put('categories', categories.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> _saveBanners() async {
+    try {
+      await _box.put('banners', banners.map((e) => e.toJson()).toList());
     } catch (_) {}
   }
 
@@ -817,6 +887,17 @@ class DataService {
           .toList();
       orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       await _saveOrders();
+
+      // Đồng bộ lại chi tiêu và thứ hạng cho danh sách khách hàng
+      for (int i = 0; i < customers.length; i++) {
+        final email = customers[i].email;
+        customers[i] = customers[i].copyWith(
+          totalSpent: getCustomerTotalSpent(email),
+          totalOrders: getCustomerTotalOrders(email),
+          memberTier: getCustomerMemberTier(email),
+        );
+      }
+      await _saveCustomers();
     } catch (e) {
       print("MongoDB Refresh Orders Error: $e");
     }
@@ -828,6 +909,63 @@ class DataService {
     return orders
         .where((o) => o.customerEmail?.trim().toLowerCase() == target)
         .toList();
+  }
+
+  static double getCustomerTotalSpent(String? customerEmail) {
+    if (customerEmail == null || customerEmail.trim().isEmpty) return 0.0;
+    final email = customerEmail.trim().toLowerCase();
+    final validOrders = orders.where((o) =>
+      o.customerEmail != null &&
+      o.customerEmail!.trim().toLowerCase() == email &&
+      o.status != OrderStatus.cancelled,
+    );
+    return validOrders.fold(0.0, (sum, o) => sum + o.totalAmount);
+  }
+
+  static int getCustomerTotalOrders(String? customerEmail) {
+    if (customerEmail == null || customerEmail.trim().isEmpty) return 0;
+    final email = customerEmail.trim().toLowerCase();
+    return orders.where((o) =>
+      o.customerEmail != null &&
+      o.customerEmail!.trim().toLowerCase() == email &&
+      o.status != OrderStatus.cancelled,
+    ).length;
+  }
+
+  static String getCustomerMemberTier(String? customerEmail) {
+    final spent = getCustomerTotalSpent(customerEmail);
+    return spent >= 2000000 ? 'Vàng' : (spent >= 500000 ? 'Bạc' : 'Đồng');
+  }
+
+  static Future<void> syncCustomerSpending(String customerEmail) async {
+    final email = customerEmail.trim().toLowerCase();
+    if (email.isEmpty) return;
+
+    final realSpent = getCustomerTotalSpent(email);
+    final realOrders = getCustomerTotalOrders(email);
+    final realTier = getCustomerMemberTier(email);
+
+    final cIndex = customers.indexWhere((c) => c.email.trim().toLowerCase() == email);
+    if (cIndex != -1) {
+      final c = customers[cIndex];
+      customers[cIndex] = c.copyWith(
+        totalSpent: realSpent,
+        totalOrders: realOrders,
+        memberTier: realTier,
+      );
+      await _saveCustomers();
+    }
+
+    try {
+      var colUsers = MongoDBService.getCollection("users");
+      await colUsers.updateOne(
+        mongo.where.eq('email', email),
+        mongo.modify
+            .set('totalSpent', realSpent)
+            .set('totalOrders', realOrders)
+            .set('memberTier', realTier),
+      );
+    } catch (_) {}
   }
 
   static Future<void> addOrder(Order order) async {
@@ -842,42 +980,9 @@ class DataService {
       print("MongoDB Error (addOrder): $e");
     }
 
-    // Cập nhật số đơn và tổng chi tiêu của khách hàng
+    // Cập nhật số đơn và tổng chi tiêu của khách hàng (chỉ tính đơn hợp lệ, không tính đơn hủy)
     if (order.customerEmail != null && order.customerEmail!.isNotEmpty) {
-      final cIndex = customers.indexWhere(
-        (c) => c.email.toLowerCase() == order.customerEmail!.toLowerCase(),
-      );
-      if (cIndex != -1) {
-        final c = customers[cIndex];
-        final newSpent = c.totalSpent + order.totalAmount;
-        final newCount = c.totalOrders + 1;
-        final newTier = newSpent >= 2000000
-            ? 'Vàng'
-            : (newSpent >= 500000 ? 'Bạc' : 'Đồng');
-
-        customers[cIndex] = Customer(
-          id: c.id,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          password: c.password,
-          totalSpent: newSpent,
-          totalOrders: newCount,
-          memberTier: newTier,
-          isActive: c.isActive,
-        );
-        await _saveCustomers();
-
-        try {
-          var colUsers = MongoDBService.getCollection("users");
-          await colUsers.updateOne(
-            mongo.where.eq('email', c.email),
-            mongo.modify
-                .inc('totalOrders', 1)
-                .inc('totalSpent', order.totalAmount),
-          );
-        } catch (_) {}
-      }
+      await syncCustomerSpending(order.customerEmail!);
     }
   }
 
@@ -960,6 +1065,7 @@ class DataService {
             ),
           );
         }
+        await syncCustomerSpending(order.customerEmail!);
       }
     }
   }
@@ -1039,6 +1145,7 @@ class DataService {
     }
 
     if (updated.customerEmail != null && updated.customerEmail!.isNotEmpty) {
+      await syncCustomerSpending(updated.customerEmail!);
       await addNotification(
         AppNotification(
           id: 'n_${DateTime.now().millisecondsSinceEpoch}',
@@ -1054,6 +1161,24 @@ class DataService {
   }
 
   // --- QUẢN LÝ DANH MỤC (CATEGORY CRUD) ---
+  static String getDefaultCategoryImageUrl(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('nhiệt đới') || lower.contains('xoài')) {
+      return 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&q=80&w=200';
+    } else if (lower.contains('nhập khẩu') || lower.contains('táo')) {
+      return 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=200';
+    } else if (lower.contains('cắt sẵn') || lower.contains('dĩa') || lower.contains('tô')) {
+      return 'https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&q=80&w=200';
+    } else if (lower.contains('mùa') || lower.contains('vụ') || lower.contains('hè')) {
+      return 'https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&q=80&w=200';
+    } else if (lower.contains('thùng') || lower.contains('hộp') || lower.contains('quà')) {
+      return 'https://images.unsplash.com/photo-1577234286642-fc512a5f8f11?auto=format&fit=crop&q=80&w=200';
+    } else if (lower.contains('việt nam') || lower.contains('nội địa') || lower.contains('chuối')) {
+      return 'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&q=80&w=200';
+    }
+    return 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&q=80&w=200';
+  }
+
   static Future<void> addCategory(Category category) async {
     categories.add(category);
     await _saveCategories();
@@ -1074,9 +1199,15 @@ class DataService {
 
       try {
         var col = MongoDBService.getCollection("categories");
+        var modifier = mongo.modify.set('name', category.name);
+        if (category.imageUrl != null && category.imageUrl!.isNotEmpty) {
+          modifier = modifier.set('imageUrl', category.imageUrl!);
+        } else {
+          modifier = modifier.unset('imageUrl');
+        }
         await col.updateOne(
           mongo.where.eq('id', category.id),
-          mongo.modify.set('name', category.name),
+          modifier,
         );
       } catch (e) {
         print("MongoDB Error (updateCategory): $e");
@@ -1105,6 +1236,58 @@ class DataService {
       await col.deleteOne(mongo.where.eq('id', id));
     } catch (e) {
       print("MongoDB Error (deleteCategory): $e");
+    }
+    return true;
+  }
+
+  // --- QUẢN LÝ BANNER THEO MÙA (BANNER CRUD) ---
+  static Future<void> addBanner(SeasonalBanner banner) async {
+    banners.insert(0, banner);
+    await _saveBanners();
+
+    try {
+      var col = MongoDBService.getCollection("banners");
+      await col.insertOne(banner.toJson());
+    } catch (e) {
+      print("MongoDB Error (addBanner): $e");
+    }
+  }
+
+  static Future<void> updateBanner(SeasonalBanner banner) async {
+    final index = banners.indexWhere((b) => b.id == banner.id);
+    if (index != -1) {
+      banners[index] = banner;
+      await _saveBanners();
+
+      try {
+        var col = MongoDBService.getCollection("banners");
+        await col.updateOne(
+          mongo.where.eq('id', banner.id),
+          mongo.modify
+              .set('badge', banner.badge)
+              .set('title', banner.title)
+              .set('subtitle', banner.subtitle)
+              .set('tag', banner.tag)
+              .set('category', banner.category)
+              .set('image', banner.image)
+              .set('colorStart', banner.colorStart)
+              .set('colorEnd', banner.colorEnd),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateBanner): $e");
+      }
+    }
+  }
+
+  static Future<bool> deleteBanner(String id) async {
+    banners.removeWhere((b) => b.id == id);
+    await _saveBanners();
+
+    try {
+      var col = MongoDBService.getCollection("banners");
+      await col.deleteOne(mongo.where.eq('id', id));
+    } catch (e) {
+      print("MongoDB Error (deleteBanner): $e");
     }
     return true;
   }
@@ -1578,6 +1761,23 @@ class DataService {
     return double.parse(avg.toStringAsFixed(1));
   }
 
+  static int getSoldCountForProduct(String productId, [String? productName]) {
+    final pid = productId.trim().toLowerCase();
+    final pname = (productName ?? '').trim().toLowerCase();
+    int count = 0;
+    for (final order in orders) {
+      if (order.status == OrderStatus.cancelled) continue;
+      for (final item in order.items) {
+        final itemId = (item['productId'] ?? '').toString().trim().toLowerCase();
+        final itemName = (item['productName'] ?? item['name'] ?? '').toString().trim().toLowerCase();
+        if ((pid.isNotEmpty && itemId == pid) || (pname.isNotEmpty && itemName == pname)) {
+          count += (item['quantity'] as num?)?.toInt() ?? 1;
+        }
+      }
+    }
+    return count;
+  }
+
   static Future<void> _updateProductRating(
     String productId,
     String? productName,
@@ -1893,5 +2093,16 @@ class DataService {
   static Future<void> reopenConversation(String conversationId) async {
     closedConversations.remove(conversationId.toLowerCase());
     await _saveChatMessages();
+  }
+
+  static Future<void> clearConversationMessages(String conversationId) async {
+    chatMessages.removeWhere((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase());
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.deleteMany(mongo.where.eq('conversationId', conversationId));
+    } catch (e) {
+      print("MongoDB error clearConversationMessages: $e");
+    }
   }
 }

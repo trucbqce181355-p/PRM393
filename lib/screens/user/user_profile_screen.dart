@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../services/data_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../admin/admin_dashboard_screen.dart';
 import 'user_home_screen.dart';
@@ -90,9 +91,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 style: TextStyle(fontSize: 14, color: Colors.white70),
                               );
                             }
-                            final customer = AuthService.currentUser;
-                            final tier = customer?.memberTier ?? 'Đồng';
-                            final email = customer?.email ?? AuthService.userEmail ?? 'Chưa đăng nhập';
+                            final email = AuthService.userEmail ?? 'Chưa đăng nhập';
+                            final tier = DataService.getCustomerMemberTier(email);
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -155,10 +155,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             const SizedBox(height: 20),
 
             // Customer Stats Card (if logged in customer)
-            if (!isAdmin && AuthService.currentUser != null)
+            if (!isAdmin && AuthService.userEmail != null && AuthService.userEmail!.isNotEmpty)
               Builder(
                 builder: (context) {
-                  final customer = AuthService.currentUser!;
+                  final email = AuthService.userEmail!;
+                  final realSpent = DataService.getCustomerTotalSpent(email);
+                  final realOrders = DataService.getCustomerTotalOrders(email);
+                  final realTier = DataService.getCustomerMemberTier(email);
+
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -181,7 +185,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const Text('Hạng thành viên', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             const SizedBox(height: 4),
                             Text(
-                              customer.memberTier,
+                              realTier,
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange),
                             ),
                           ],
@@ -192,7 +196,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const Text('Tổng chi tiêu', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             const SizedBox(height: 4),
                             Text(
-                              '${customer.totalSpent.toStringAsFixed(0)}₫',
+                              '${realSpent.toStringAsFixed(0)}₫',
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green),
                             ),
                           ],
@@ -203,7 +207,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const Text('Tổng đơn hàng', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             const SizedBox(height: 4),
                             Text(
-                              '${customer.totalOrders}',
+                              '$realOrders',
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blue),
                             ),
                           ],
