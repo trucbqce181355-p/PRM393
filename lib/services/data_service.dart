@@ -283,6 +283,12 @@ class DataService {
     return list;
   }
 
+  static List<ChatMessage> getMessagesForConversation(String conversationId) {
+    final msgs = chatMessages.where((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase()).toList();
+    msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return msgs;
+  }
+
   static Future<void> sendChatMessage(ChatMessage message) async {
     chatMessages.add(message);
     await _saveChatMessages();
