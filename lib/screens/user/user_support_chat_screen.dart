@@ -105,6 +105,25 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
                 IconButton(
                   icon: const Icon(Icons.photo_camera, color: Colors.blue),
                   tooltip: 'Gửi ảnh minh chứng',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.attach_file, color: Colors.grey),
+                  tooltip: 'Gửi tệp đính kèm',
+                  onPressed: () async {
+                    final msg = ChatMessage(
+                      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+                      conversationId: _conversationId,
+                      senderEmail: _conversationId,
+                      senderName: _customerName,
+                      senderRole: 'user',
+                      message: '[Tệp đính kèm: hoa_don_traicay.pdf]',
+                      fileAttachment: 'https://fruitopia.vn/docs/hoa_don_traicay.pdf',
+                      fileName: 'hoa_don_traicay.pdf',
+                      createdAt: DateTime.now(),
+                    );
+                    await DataService.sendChatMessage(msg);
+                    setState(() {});
+                  },
                   onPressed: () async {
                     final msg = ChatMessage(
                       id: 'm_${DateTime.now().millisecondsSinceEpoch}',
