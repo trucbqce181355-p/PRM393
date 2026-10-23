@@ -102,6 +102,24 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
             decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.photo_camera, color: Colors.blue),
+                  tooltip: 'Gửi ảnh minh chứng',
+                  onPressed: () async {
+                    final msg = ChatMessage(
+                      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+                      conversationId: _conversationId,
+                      senderEmail: _conversationId,
+                      senderName: _customerName,
+                      senderRole: 'user',
+                      message: '[Đã đính kèm ảnh sản phẩm]',
+                      imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&q=80&w=400',
+                      createdAt: DateTime.now(),
+                    );
+                    await DataService.sendChatMessage(msg);
+                    setState(() {});
+                  },
+                ),
                 Expanded(
                   child: TextField(
                     controller: _msgController,
