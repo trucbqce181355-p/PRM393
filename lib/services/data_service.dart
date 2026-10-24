@@ -1905,4 +1905,63 @@ class DataService {
       print("MongoDB error clearConversationMessages: $e");
     }
   }
+
+  static Future<void> adjustProductStock(String id, int delta) async {
+    final index = products.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      final newStock = products[index].stock + delta;
+      products[index].stock = (newStock < 0) ? 0 : newStock;
+      await _saveProducts();
+      try {
+        var col = MongoDBService.getCollection("products");
+        await col.updateOne(
+          mongo.where.eq('id', id),
+          mongo.modify.set('stock', products[index].stock),
+        );
+      } catch (e) {
+        print("MongoDB Error (adjustProductStock): $e");
+      }
+    }
+  }
+
+  static Future<void> restoreOrderStock(Order order) async {
+    for (var item in order.items) {
+      final pid = item['productId']?.toString();
+      final qty = (item['quantity'] as num?)?.toInt() ?? 0;
+      if (pid != null && qty > 0) {
+        await adjustProductStock(pid, qty);
+      }
+    }
+  }
+
+  static Future<void> updateOrderStatus(
+    String orderId,
+    OrderStatus newStatus, {
+    String? cancelReason,
+    String? shipperName,
+    String? shipperPhone,
+  }) async {
+    final index = orders.indexWhere((o) => o.id == orderId);
+    if (index != -1) {
+      final prevStatus = orders[index].status;
+      orders[index].status = newStatus;
+      if (cancelReason != null) {
+        orders[index].cancelReason = cancelReason;
+        orders[index].cancellationReason = cancelReason;
+      }
+      if (shipperName != null) {
+        orders[index].shipperName = shipperName;
+        orders[index].assignedShipperName = shipperName;
+      }
+      if (shipperPhone != null) {
+        orders[index].shipperPhone = shipperPhone;
+        orders[index].assignedShipperPhone = shipperPhone;
+      }
+      await _saveOrders();
+
+      if (newStatus == OrderStatus.cancelled && prevStatus != OrderStatus.cancelled) {
+        await restoreOrderStock(orders[index]);
+      }
+    }
+  }
 }

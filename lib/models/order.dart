@@ -10,6 +10,9 @@ class Order {
   final String itemsSummary;
   OrderStatus status;
   final DateTime createdAt;
+  String? shipperName;
+  String? shipperPhone;
+  String? cancelReason;
 
   // Chi tiết hóa đơn và giao hàng
   final List<Map<String, dynamic>> items;
@@ -39,20 +42,28 @@ class Order {
     this.shippingFee = 0.0,
     this.discountAmount = 0.0,
     this.voucherCode,
-    this.assignedShipperName,
-    this.assignedShipperPhone,
+    String? assignedShipperName,
+    String? assignedShipperPhone,
     this.deliveryNotes,
-    this.cancellationReason,
-  });
+    String? cancellationReason,
+    String? shipperName,
+    String? shipperPhone,
+    String? cancelReason,
+  })  : assignedShipperName = assignedShipperName ?? shipperName,
+        assignedShipperPhone = assignedShipperPhone ?? shipperPhone,
+        cancellationReason = cancellationReason ?? cancelReason,
+        shipperName = shipperName ?? assignedShipperName,
+        shipperPhone = shipperPhone ?? assignedShipperPhone,
+        cancelReason = cancelReason ?? cancellationReason;
 
   factory Order.fromJson(Map<String, dynamic> json) {
     OrderStatus parseStatus(String? s) {
       if (s == null) return OrderStatus.pending;
       final lower = s.toLowerCase().trim();
-      if (lower == 'ready' || lower == 'đã gói xong') return OrderStatus.ready;
-      if (lower == 'delivering' || lower == 'đang giao') return OrderStatus.delivering;
-      if (lower == 'completed' || lower == 'đã hoàn thành' || lower == 'hoàn thành') return OrderStatus.completed;
-      if (lower == 'cancelled' || lower == 'đã hủy') return OrderStatus.cancelled;
+      if (lower == 'ready') return OrderStatus.ready;
+      if (lower == 'delivering') return OrderStatus.delivering;
+      if (lower == 'completed') return OrderStatus.completed;
+      if (lower == 'cancelled') return OrderStatus.cancelled;
       return OrderStatus.pending;
     }
 
@@ -63,10 +74,14 @@ class Order {
       return [];
     }
 
+    final sName = json['assignedShipperName']?.toString() ?? json['shipperName']?.toString() ?? json['shipper_name']?.toString();
+    final sPhone = json['assignedShipperPhone']?.toString() ?? json['shipperPhone']?.toString() ?? json['shipper_phone']?.toString();
+    final cReason = json['cancellationReason']?.toString() ?? json['cancelReason']?.toString() ?? json['cancel_reason']?.toString();
+
     return Order(
       id: json['id']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? json['customer_name']?.toString() ?? 'Khách hàng',
-      customerEmail: json['customerEmail']?.toString() ?? json['customer_email']?.toString() ?? json['userId']?.toString(),
+      customerEmail: json['customerEmail']?.toString() ?? json['customer_email']?.toString(),
       customerPhone: json['customerPhone']?.toString() ?? json['customer_phone']?.toString(),
       address: json['address']?.toString() ?? '',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? (json['total'] as num?)?.toDouble() ?? 0.0,
@@ -81,10 +96,13 @@ class Order {
       shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0.0,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       voucherCode: json['voucherCode']?.toString(),
-      assignedShipperName: json['assignedShipperName']?.toString() ?? json['shipper_name']?.toString(),
-      assignedShipperPhone: json['assignedShipperPhone']?.toString() ?? json['shipper_phone']?.toString(),
+      assignedShipperName: sName,
+      assignedShipperPhone: sPhone,
+      shipperName: sName,
+      shipperPhone: sPhone,
       deliveryNotes: json['deliveryNotes']?.toString() ?? json['notes']?.toString(),
-      cancellationReason: json['cancellationReason']?.toString() ?? json['cancel_reason']?.toString(),
+      cancellationReason: cReason,
+      cancelReason: cReason,
     );
   }
 
@@ -92,19 +110,20 @@ class Order {
     String statusString;
     switch (status) {
       case OrderStatus.ready:
-        statusString = 'Đã gói xong';
+        statusString = 'ready';
         break;
       case OrderStatus.delivering:
-        statusString = 'Đang giao';
+        statusString = 'delivering';
         break;
       case OrderStatus.completed:
-        statusString = 'Đã hoàn thành';
+        statusString = 'completed';
         break;
       case OrderStatus.cancelled:
-        statusString = 'Đã hủy';
+        statusString = 'cancelled';
         break;
       case OrderStatus.pending:
-        statusString = 'Đang xử lý';
+      default:
+        statusString = 'pending';
         break;
     }
 
@@ -126,8 +145,11 @@ class Order {
       'voucherCode': voucherCode,
       'assignedShipperName': assignedShipperName,
       'assignedShipperPhone': assignedShipperPhone,
+      'shipperName': shipperName,
+      'shipperPhone': shipperPhone,
       'deliveryNotes': deliveryNotes,
       'cancellationReason': cancellationReason,
+      'cancelReason': cancelReason,
     };
   }
 
@@ -151,6 +173,9 @@ class Order {
     String? assignedShipperPhone,
     String? deliveryNotes,
     String? cancellationReason,
+    String? shipperName,
+    String? shipperPhone,
+    String? cancelReason,
   }) {
     return Order(
       id: id ?? this.id,
@@ -168,10 +193,13 @@ class Order {
       shippingFee: shippingFee ?? this.shippingFee,
       discountAmount: discountAmount ?? this.discountAmount,
       voucherCode: voucherCode ?? this.voucherCode,
-      assignedShipperName: assignedShipperName ?? this.assignedShipperName,
-      assignedShipperPhone: assignedShipperPhone ?? this.assignedShipperPhone,
+      assignedShipperName: assignedShipperName ?? shipperName ?? this.assignedShipperName,
+      assignedShipperPhone: assignedShipperPhone ?? shipperPhone ?? this.assignedShipperPhone,
       deliveryNotes: deliveryNotes ?? this.deliveryNotes,
-      cancellationReason: cancellationReason ?? this.cancellationReason,
+      cancellationReason: cancellationReason ?? cancelReason ?? this.cancellationReason,
+      shipperName: shipperName ?? assignedShipperName ?? this.shipperName,
+      shipperPhone: shipperPhone ?? assignedShipperPhone ?? this.shipperPhone,
+      cancelReason: cancelReason ?? cancellationReason ?? this.cancelReason,
     );
   }
 }
