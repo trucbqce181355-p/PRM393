@@ -1,4 +1,10 @@
-enum OrderStatus { pending, ready, delivering, completed, cancelled }
+enum OrderStatus {
+  pending,
+  ready,
+  delivering,
+  completed,
+  cancelled,
+}
 
 class Order {
   final String id;
@@ -60,10 +66,10 @@ class Order {
     OrderStatus parseStatus(String? s) {
       if (s == null) return OrderStatus.pending;
       final lower = s.toLowerCase().trim();
-      if (lower == 'ready') return OrderStatus.ready;
-      if (lower == 'delivering') return OrderStatus.delivering;
-      if (lower == 'completed') return OrderStatus.completed;
-      if (lower == 'cancelled') return OrderStatus.cancelled;
+      if (lower == 'ready' || lower == 'đã gói xong') return OrderStatus.ready;
+      if (lower == 'delivering' || lower == 'đang giao') return OrderStatus.delivering;
+      if (lower == 'completed' || lower == 'đã hoàn thành' || lower == 'hoàn thành') return OrderStatus.completed;
+      if (lower == 'cancelled' || lower == 'đã hủy') return OrderStatus.cancelled;
       return OrderStatus.pending;
     }
 
@@ -81,7 +87,7 @@ class Order {
     return Order(
       id: json['id']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? json['customer_name']?.toString() ?? 'Khách hàng',
-      customerEmail: json['customerEmail']?.toString() ?? json['customer_email']?.toString(),
+      customerEmail: json['customerEmail']?.toString() ?? json['customer_email']?.toString() ?? json['userId']?.toString(),
       customerPhone: json['customerPhone']?.toString() ?? json['customer_phone']?.toString(),
       address: json['address']?.toString() ?? '',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? (json['total'] as num?)?.toDouble() ?? 0.0,
@@ -110,20 +116,20 @@ class Order {
     String statusString;
     switch (status) {
       case OrderStatus.ready:
-        statusString = 'ready';
+        statusString = 'Đã gói xong';
         break;
       case OrderStatus.delivering:
-        statusString = 'delivering';
+        statusString = 'Đang giao';
         break;
       case OrderStatus.completed:
-        statusString = 'completed';
+        statusString = 'Đã hoàn thành';
         break;
       case OrderStatus.cancelled:
-        statusString = 'cancelled';
+        statusString = 'Đã hủy';
         break;
       case OrderStatus.pending:
       default:
-        statusString = 'pending';
+        statusString = 'Đang xử lý';
         break;
     }
 

@@ -883,12 +883,32 @@ class DataService {
 
   static Future<void> updateOrderStatus(
     String orderId,
-    OrderStatus newStatus,
-  ) async {
+    OrderStatus newStatus, {
+    String? cancelReason,
+    String? shipperName,
+    String? shipperPhone,
+  }) async {
     final index = orders.indexWhere((o) => o.id == orderId);
     if (index != -1) {
+      final prevStatus = orders[index].status;
       orders[index].status = newStatus;
+      if (cancelReason != null) {
+        orders[index].cancelReason = cancelReason;
+        orders[index].cancellationReason = cancelReason;
+      }
+      if (shipperName != null) {
+        orders[index].shipperName = shipperName;
+        orders[index].assignedShipperName = shipperName;
+      }
+      if (shipperPhone != null) {
+        orders[index].shipperPhone = shipperPhone;
+        orders[index].assignedShipperPhone = shipperPhone;
+      }
       await _saveOrders();
+
+      if (newStatus == OrderStatus.cancelled && prevStatus != OrderStatus.cancelled) {
+        await restoreOrderStock(orders[index]);
+      }
 
       String statusString;
       switch (newStatus) {
@@ -1925,42 +1945,23 @@ class DataService {
   }
 
   static Future<void> restoreOrderStock(Order order) async {
-    for (var item in order.items) {
-      final pid = item['productId']?.toString();
-      final qty = (item['quantity'] as num?)?.toInt() ?? 0;
-      if (pid != null && qty > 0) {
-        await adjustProductStock(pid, qty);
+    if (order.items.isNotEmpty) {
+      for (var item in order.items) {
+        final pid = item['productId']?.toString();
+        final qty = (item['quantity'] as num?)?.toInt() ?? 0;
+        if (pid != null && qty > 0) {
+          await adjustProductStock(pid, qty);
+        }
       }
-    }
-  }
-
-  static Future<void> updateOrderStatus(
-    String orderId,
-    OrderStatus newStatus, {
-    String? cancelReason,
-    String? shipperName,
-    String? shipperPhone,
-  }) async {
-    final index = orders.indexWhere((o) => o.id == orderId);
-    if (index != -1) {
-      final prevStatus = orders[index].status;
-      orders[index].status = newStatus;
-      if (cancelReason != null) {
-        orders[index].cancelReason = cancelReason;
-        orders[index].cancellationReason = cancelReason;
-      }
-      if (shipperName != null) {
-        orders[index].shipperName = shipperName;
-        orders[index].assignedShipperName = shipperName;
-      }
-      if (shipperPhone != null) {
-        orders[index].shipperPhone = shipperPhone;
-        orders[index].assignedShipperPhone = shipperPhone;
-      }
-      await _saveOrders();
-
-      if (newStatus == OrderStatus.cancelled && prevStatus != OrderStatus.cancelled) {
-        await restoreOrderStock(orders[index]);
+    } else if (order.itemsSummary.isNotEmpty) {
+      final match = RegExp(r'^(.*?)\s*\(x(\d+)\)').firstMatch(order.itemsSummary.trim());
+      if (match != null) {
+        final pName = match.group(1)?.trim();
+        final qty = int.tryParse(match.group(2) ?? '0') ?? 0;
+        final pIndex = products.indexWhere((p) => p.name.toLowerCase() == (pName ?? '').toLowerCase());
+        if (pIndex != -1 && qty > 0) {
+          await adjustProductStock(products[pIndex].id, qty);
+        }
       }
     }
   }
