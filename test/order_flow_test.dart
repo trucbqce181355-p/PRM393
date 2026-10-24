@@ -145,5 +145,73 @@ void main() {
       expect(AuthService.isLoggedIn, isTrue);
       expect(Cart.items.length, 1); // Giỏ hàng bảo lưu nguyên vẹn
     });
+
+    test('Inventory automatically deducted upon order placement and refunded when cancelled', () async {
+      final product = Product(
+        id: 'p_inventory_test',
+        name: 'Cam Sành Mọng Nước',
+        description: 'Cam ngon ngọt',
+        price: 50000,
+        unit: 'kg',
+        imageUrl: 'https://example.com/cam.jpg',
+        stock: 20,
+        category: 'Trái Cây',
+        origin: 'Việt Nam',
+        freshness: 'Tươi mới',
+      );
+      DataService.products = [product];
+
+      // Giả lập đặt hàng số lượng 5 kg
+      await DataService.adjustProductStock(product.id, -5);
+      expect(DataService.products.first.stock, 15);
+
+      final order = Order(
+        id: 'DH_INVENTORY_01',
+        customerName: 'Khách Hàng Test',
+        customerEmail: 'test@gmail.com',
+        address: 'Hà Nội',
+        totalAmount: 250000,
+        itemsSummary: 'Cam Sành Mọng Nước (x5)',
+        status: OrderStatus.pending,
+        createdAt: DateTime.now(),
+      );
+      DataService.orders = [order];
+
+      // Admin hoặc khách hủy đơn -> Tồn kho tự động hoàn trả 5 kg
+      await DataService.updateOrderStatus(
+        order.id,
+        OrderStatus.cancelled,
+        cancelReason: 'Khách hàng đổi ý',
+      );
+
+      expect(DataService.orders.first.status, OrderStatus.cancelled);
+      expect(DataService.orders.first.cancelReason, 'Khách hàng đổi ý');
+      expect(DataService.products.first.stock, 20); // Đã hoàn lại đủ 20 kg
+    });
+
+    test('Assigning shipper and updating order delivery status', () async {
+      final order = Order(
+        id: 'DH_SHIPPER_01',
+        customerName: 'Khách VIP',
+        customerEmail: 'vip@gmail.com',
+        address: 'Quận 7, TP.HCM',
+        totalAmount: 500000,
+        itemsSummary: 'Sầu riêng Ri6 (x1)',
+        status: OrderStatus.ready,
+        createdAt: DateTime.now(),
+      );
+      DataService.orders = [order];
+
+      await DataService.updateOrderStatus(
+        order.id,
+        OrderStatus.delivering,
+        shipperName: 'Nguyễn Văn Giao',
+        shipperPhone: '0901.234.567',
+      );
+
+      expect(DataService.orders.first.status, OrderStatus.delivering);
+      expect(DataService.orders.first.shipperName, 'Nguyễn Văn Giao');
+      expect(DataService.orders.first.shipperPhone, '0901.234.567');
+    });
   });
 }
