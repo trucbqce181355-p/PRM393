@@ -4,6 +4,9 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/chat_message.dart';
+import '../models/app_notification.dart';
+import '../models/return_request.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -11,10 +14,12 @@ class DataService {
   static List<Product> products = [];
   static List<Order> orders = [];
   static List<Voucher> vouchers = [];
-  static List<ChatMessage> chatMessages = [];
-  static Set<String> closedConversations = {};
   static List<Customer> customers = [];
   static List<Category> categories = [];
+  static List<ChatMessage> chatMessages = [];
+  static Set<String> closedConversations = {};
+  static List<AppNotification> notifications = [];
+  static List<ReturnRequest> returnRequests = [];
 
   static late Box _box;
 
@@ -260,93 +265,6 @@ class DataService {
     await _box.put('products', products.map((e) => e.toJson()).toList());
   }
 
-  static List<ChatConversation> getAllConversations() {
-    final Map<String, List<ChatMessage>> grouped = {};
-    for (var m in chatMessages) {
-      grouped.putIfAbsent(m.conversationId, () => []).add(m);
-    }
-    final List<ChatConversation> list = [];
-    grouped.forEach((convId, msgs) {
-      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      final lastMsg = msgs.last;
-      list.add(ChatConversation(
-        conversationId: convId,
-        customerName: msgs.firstWhere((m) => m.senderRole == 'user', orElse: () => lastMsg).senderName,
-        customerEmail: convId,
-        lastMessage: lastMsg.message,
-        lastMessageTime: lastMsg.createdAt,
-        unreadCount: msgs.where((m) => m.senderRole == 'user').length,
-        isClosed: closedConversations.contains(convId.toLowerCase()),
-      ));
-    });
-    list.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-    return list;
-  }
-
-  static List<ChatMessage> getMessagesForConversation(String conversationId) {
-    final msgs = chatMessages.where((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase()).toList();
-    msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    return msgs;
-  }
-
-  static void _triggerAutoReplyIfNeeded(String conversationId, String customerName) {
-    Future.delayed(const Duration(milliseconds: 600), () async {
-      final autoReply = ChatMessage(
-        id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-        conversationId: conversationId,
-        senderEmail: 'support@fruitopia.vn',
-        senderName: 'Fruitopia CSKH',
-        senderRole: 'admin',
-        message: 'Chào ${customerName}, chuyên viên tư vấn Fruitopia đã nhận được yêu cầu của bạn và sẽ phản hồi trong giây lát!',
-        createdAt: DateTime.now(),
-      );
-      await sendChatMessage(autoReply);
-    });
-  }
-
-  static Future<void> markMessagesAsRead(String conversationId, String readerRole) async {
-    bool updated = false;
-    for (var m in chatMessages) {
-      if (m.conversationId.toLowerCase() == conversationId.toLowerCase() && m.senderRole != readerRole && !m.isRead) {
-        m.isRead = true;
-        updated = true;
-      }
-    }
-    if (updated) {
-      await _saveChatMessages();
-      try {
-        var col = MongoDBService.getCollection("chat_messages");
-        await col.updateMany(
-          mongo.where.eq('conversationId', conversationId).ne('senderRole', readerRole),
-          mongo.modify.set('isRead', true),
-        );
-      } catch (e) {
-        print("MongoDB error markMessagesAsRead: $e");
-      }
-    }
-  }
-
-  static Future<void> sendChatMessage(ChatMessage message) async {
-    chatMessages.add(message);
-    await _saveChatMessages();
-    if (message.senderRole == 'user') {
-      _triggerAutoReplyIfNeeded(message.conversationId, message.senderName);
-    }
-    try {
-      var col = MongoDBService.getCollection("chat_messages");
-      await col.insertOne(message.toJson());
-    } catch (e) {
-      print("MongoDB Error (sendChatMessage): $e");
-    }
-  }
-
-  static Future<void> _saveChatMessages() async {
-    if (_box.isOpen) {
-      final jsonList = chatMessages.map((m) => m.toJson()).toList();
-      await _box.put('chat_messages', jsonList);
-    }
-  }
-
   static Future<void> _saveVouchers() async {
     await _box.put('vouchers', vouchers.map((e) => e.toJson()).toList());
   }
@@ -454,45 +372,6 @@ class DataService {
     }
   }
 
-  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
-    final index = vouchers.indexWhere((v) => v.code == code);
-    if (index != -1) {
-      vouchers[index] = vouchers[index].copyWith(isActive: isActive);
-      await _saveVouchers();
-      try {
-        var col = MongoDBService.getCollection("vouchers");
-        await col.updateOne(mongo.where.eq('code', code), mongo.modify.set('isActive', isActive));
-      } catch (e) {
-        print("MongoDB Error (toggleVoucherStatus): $e");
-      }
-    }
-  }
-
-  static Future<void> deleteVoucher(String code) async {
-    vouchers.removeWhere((v) => v.code == code);
-    await _saveVouchers();
-    try {
-      var col = MongoDBService.getCollection("vouchers");
-      await col.deleteOne(mongo.where.eq('code', code));
-    } catch (e) {
-      print("MongoDB Error (deleteVoucher): $e");
-    }
-  }
-
-  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
-    final index = vouchers.indexWhere((v) => v.code == oldCode);
-    if (index != -1) {
-      vouchers[index] = updatedVoucher;
-      await _saveVouchers();
-      try {
-        var col = MongoDBService.getCollection("vouchers");
-        await col.replaceOne(mongo.where.eq('code', oldCode), updatedVoucher.toJson());
-      } catch (e) {
-        print("MongoDB Error (updateVoucher): $e");
-      }
-    }
-  }
-
   static Future<void> addVoucher(Voucher voucher) async {
     vouchers.add(voucher);
     await _saveVouchers();
@@ -509,6 +388,65 @@ class DataService {
       });
     } catch (e) {
       print("MongoDB Error (addVoucher): $e");
+    }
+  }
+
+  static Future<void> updateVoucher(String oldCode, Voucher updatedVoucher) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == oldCode.toUpperCase());
+    if (index != -1) {
+      vouchers[index] = updatedVoucher;
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', oldCode),
+          mongo.modify
+              .set('code', updatedVoucher.code)
+              .set('description', updatedVoucher.description)
+              .set('discountAmount', updatedVoucher.discountAmount)
+              .set('discount_percent', updatedVoucher.discountAmount)
+              .set('minPurchase', updatedVoucher.minPurchase)
+              .set('min_order_value', updatedVoucher.minPurchase)
+              .set('isActive', updatedVoucher.isActive)
+              .set('updated_at', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateVoucher): $e");
+      }
+    }
+  }
+
+  static Future<void> deleteVoucher(String code) async {
+    vouchers.removeWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    await _saveVouchers();
+
+    try {
+      var col = MongoDBService.getCollection("vouchers");
+      await col.deleteOne(mongo.where.eq('code', code));
+    } catch (e) {
+      print("MongoDB Error (deleteVoucher): $e");
+    }
+  }
+
+  static Future<void> toggleVoucherStatus(String code, bool isActive) async {
+    final index = vouchers.indexWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+    if (index != -1) {
+      final old = vouchers[index];
+      vouchers[index] = old.copyWith(isActive: isActive);
+      await _saveVouchers();
+
+      try {
+        var col = MongoDBService.getCollection("vouchers");
+        await col.updateOne(
+          mongo.where.eq('code', code),
+          mongo.modify
+              .set('isActive', isActive)
+              .set('updated_at', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (toggleVoucherStatus): $e");
+      }
     }
   }
 
@@ -571,4 +509,249 @@ class DataService {
       }
     }
   }
+
+  // --- QUẢN LÝ YÊU CẦU ĐỔI TRẢ & HỖ TRỢ KHÁCH HÀNG ---
+  static Future<void> _saveReturnRequests() async {
+    try {
+      await _box.put('return_requests', returnRequests.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> addReturnRequest(ReturnRequest req) async {
+    returnRequests.insert(0, req);
+    await _saveReturnRequests();
+
+    try {
+      var col = MongoDBService.getCollection("return_requests");
+      await col.insertOne(req.toJson());
+    } catch (e) {
+      print("MongoDB Error (addReturnRequest): $e");
+    }
+  }
+
+  static Future<void> updateReturnRequest(ReturnRequest updatedReq) async {
+    final index = returnRequests.indexWhere((r) => r.id == updatedReq.id);
+    if (index != -1) {
+      returnRequests[index] = updatedReq;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', updatedReq.id),
+          mongo.modify
+              .set('status', updatedReq.status)
+              .set('adminReply', updatedReq.adminReply)
+              .set('updatedAt', updatedReq.updatedAt?.toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> cancelReturnRequest(String requestId) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: 'cancelled',
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', 'cancelled')
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (cancelReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> processReturnRequest(
+    String requestId, {
+    required String status,
+    required String reply,
+  }) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: status,
+        adminReply: reply,
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', status)
+              .set('adminReply', reply)
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (processReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> replyReturnRequest({
+    required String requestId,
+    required String status,
+    required String reply,
+  }) async {
+    await processReturnRequest(requestId, status: status, reply: reply);
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders
+        .where((o) => o.customerEmail?.trim().toLowerCase() == target)
+        .toList();
+  }
+
+  // --- QUẢN LÝ CHAT & HỖ TRỢ KHÁCH HÀNG (MODULE 11) ---
+  static Future<void> _saveChatMessages() async {
+    try {
+      await _box.put('chat_messages', chatMessages.map((e) => e.toJson()).toList());
+      await _box.put('closed_conversations', closedConversations.toList());
+    } catch (_) {}
+  }
+
+  static Future<void> sendChatMessage(ChatMessage message) async {
+    chatMessages.add(message);
+    await _saveChatMessages();
+
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.insertOne(message.toJson());
+    } catch (e) {
+      print("MongoDB Error (sendChatMessage): $e");
+    }
+
+    if (message.senderRole == 'user') {
+      _triggerAutoReplyIfNeeded(message.conversationId, message.senderName);
+    }
+  }
+
+  static void _triggerAutoReplyIfNeeded(String conversationId, String customerName) {
+    Future.delayed(const Duration(milliseconds: 1200), () async {
+      final convMsgs = getMessagesForConversation(conversationId);
+      if (convMsgs.isNotEmpty && convMsgs.last.senderRole == 'user') {
+        final botMsg = ChatMessage(
+          id: 'msg_bot_${DateTime.now().millisecondsSinceEpoch}',
+          conversationId: conversationId,
+          senderEmail: 'support@fruitopia.vn',
+          senderName: 'CSKH Fruitopia',
+          senderRole: 'admin',
+          message: 'Chào $customerName! Chuyên viên tư vấn Fruitopia đã nhận được tin nhắn và đang hỗ trợ bạn ngay.',
+          createdAt: DateTime.now(),
+          isRead: false,
+        );
+        chatMessages.add(botMsg);
+        await _saveChatMessages();
+      }
+    });
+  }
+
+  static List<ChatMessage> getMessagesForConversation(String conversationId) {
+    return chatMessages
+        .where((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase())
+        .toList();
+  }
+
+  static List<ChatConversation> getAllConversations() {
+    final Map<String, List<ChatMessage>> groups = {};
+    for (var m in chatMessages) {
+      final key = m.conversationId.toLowerCase();
+      groups.putIfAbsent(key, () => []).add(m);
+    }
+
+    final List<ChatConversation> result = [];
+    for (var entry in groups.entries) {
+      final msgs = entry.value;
+      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final last = msgs.last;
+      final unread = msgs.where((m) => !m.isRead && m.senderRole == 'user').length;
+      final customer = customers.firstWhere(
+        (c) => c.email.toLowerCase() == entry.key,
+        orElse: () => Customer(id: '', name: last.senderRole == 'user' ? last.senderName : 'Khách hàng', email: entry.key, phone: '', totalSpent: 0, totalOrders: 0),
+      );
+
+      result.add(
+        ChatConversation(
+          id: entry.key,
+          customerEmail: entry.key,
+          customerName: customer.name.isNotEmpty ? customer.name : (last.senderRole == 'user' ? last.senderName : 'Khách hàng'),
+          customerPhone: customer.phone,
+          lastMessage: last.message.isNotEmpty ? last.message : (last.imageUrl != null ? '[Hình ảnh]' : '[Tệp đính kèm]'),
+          lastMessageTime: last.createdAt,
+          unreadCount: unread,
+          isClosed: closedConversations.contains(entry.key),
+          isSupportAgentOnline: true,
+        ),
+      );
+    }
+
+    result.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    return result;
+  }
+
+  static Future<void> markMessagesAsRead(String conversationId, String readerRole) async {
+    bool hasChanged = false;
+    for (var m in chatMessages) {
+      if (m.conversationId.toLowerCase() == conversationId.toLowerCase()) {
+        if (!m.isRead && m.senderRole != readerRole) {
+          m.isRead = true;
+          hasChanged = true;
+        }
+      }
+    }
+    if (hasChanged) {
+      await _saveChatMessages();
+      try {
+        var col = MongoDBService.getCollection("chat_messages");
+        await col.updateMany(
+          mongo.where.eq('conversationId', conversationId).ne('senderRole', readerRole),
+          mongo.modify.set('isRead', true),
+        );
+      } catch (e) {
+        print("MongoDB error markMessagesAsRead: $e");
+      }
+    }
+  }
+
+  static Future<void> closeConversation(String conversationId) async {
+    closedConversations.add(conversationId.toLowerCase());
+    await _saveChatMessages();
+  }
+
+  static Future<void> reopenConversation(String conversationId) async {
+    closedConversations.remove(conversationId.toLowerCase());
+    await _saveChatMessages();
+  }
+
+  static Future<void> clearConversationMessages(String conversationId) async {
+    chatMessages.removeWhere((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase());
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.deleteMany(mongo.where.eq('conversationId', conversationId));
+    } catch (e) {
+      print("MongoDB error clearConversationMessages: $e");
+    }
+  }
 }
+
