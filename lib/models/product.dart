@@ -64,4 +64,36 @@ class Product {
       'isDeleted': isDeleted,
     };
   }
+
+  Product copyWith({
+    String? id,
+    String? name,
+    String? description,
+    double? price,
+    String? unit,
+    String? imageUrl,
+    double? rating,
+    int? stock,
+    String? category,
+    String? origin,
+    String? freshness,
+    bool? isActive,
+    bool? isDeleted,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      unit: unit ?? this.unit,
+      imageUrl: imageUrl ?? this.imageUrl,
+      rating: rating ?? this.rating,
+      stock: stock ?? this.stock,
+      category: category ?? this.category,
+      origin: origin ?? this.origin,
+      freshness: freshness ?? this.freshness,
+      isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
+  }
 }

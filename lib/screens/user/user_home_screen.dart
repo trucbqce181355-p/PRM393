@@ -1,8 +1,8 @@
 import '../../utils/snackbar_helper.dart';
 import '../../services/auth_service.dart';
-import '../../utils/sign_out_dialog.dart';
+
 import 'package:flutter/material.dart';
-import '../auth/login_screen.dart';
+
 import '../auth/register_screen.dart';
 import '../auth/forgot_password_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
@@ -14,6 +14,8 @@ import '../../services/data_service.dart';
 import 'product_detail_screen.dart';
 import '../../utils/format_helper.dart';
 import 'user_vouchers_screen.dart';
+import 'user_notifications_screen.dart';
+import 'user_support_chat_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -40,17 +42,45 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     'Cũ nhất',
     'Mới nhất',
     'Bán chạy nhất',
-    'Tồn kho giảm dần'
+    'Tồn kho giảm dần',
   ];
 
   final List<String> _priceRanges = [
-    'Dưới 500.000₫',
-    '500.000₫ - 1.000.000₫',
-    '1.000.000₫ - 2.000.000₫',
-    '2.000.000₫ - 3.000.000₫',
-    'Trên 3.000.000₫',
+    'Dưới 100.000₫',
+    '100.000₫ - 200.000₫',
+    '200.000₫ - 500.000₫',
+    'Trên 500.000₫',
   ];
   final List<String> _selectedPriceRanges = [];
+
+  final List<String> _originOptions = [
+    'Việt Nam (Nội địa)',
+    'New Zealand',
+    'Nhật Bản',
+    'Australia (Úc)',
+    'Nhập khẩu',
+  ];
+  final List<String> _selectedOrigins = [];
+
+  bool get _hasActiveFilters =>
+      _selectedCategory != 'Tất cả' ||
+      _selectedOrigins.isNotEmpty ||
+      _selectedPriceRanges.isNotEmpty;
+
+  int get _activeFilterCount =>
+      (_selectedCategory != 'Tất cả' ? 1 : 0) +
+      _selectedOrigins.length +
+      _selectedPriceRanges.length;
+
+  void _resetFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedCategory = 'Tất cả';
+      _selectedOrigins.clear();
+      _selectedPriceRanges.clear();
+    });
+  }
 
   // Danh mục trái cây
   final List<Map<String, String>> _categories = [
@@ -123,39 +153,99 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       if (p.isDeleted || !p.isActive) return false;
 
       final query = _searchQuery.trim().toLowerCase();
-      final matchesSearch = query.isEmpty ||
+      final matchesSearch =
+          query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
           p.origin.toLowerCase().contains(query) ||
           p.category.toLowerCase().contains(query) ||
           p.description.toLowerCase().contains(query) ||
           p.price.toString().contains(query);
 
+      // 2. Lọc theo Danh mục (Category)
       bool matchesCategory = true;
       if (_selectedCategory != 'Tất cả') {
         final catLower = _selectedCategory.toLowerCase();
         final pCatLower = p.category.toLowerCase();
         if (_selectedCategory == 'Trái Cây Nhiệt Đới') {
-          matchesCategory = pCatLower.contains('nhiệt đới') || pCatLower.contains('việt nam');
+          matchesCategory =
+              pCatLower.contains('nhiệt đới') || pCatLower.contains('việt nam');
         } else if (_selectedCategory == 'Trái Cây Nhập Khẩu') {
           matchesCategory = pCatLower.contains('nhập khẩu');
         } else {
-          matchesCategory = pCatLower.contains(catLower) || catLower.contains(pCatLower);
+          matchesCategory =
+              pCatLower.contains(catLower) || catLower.contains(pCatLower);
         }
       }
-      
+
+      // 3. Lọc theo Nguồn gốc (Origin)
+      bool matchesOrigin = true;
+      if (_selectedOrigins.isNotEmpty) {
+        matchesOrigin = false;
+        final pOriginLower = p.origin.toLowerCase();
+        final pCatLower = p.category.toLowerCase();
+        for (String origin in _selectedOrigins) {
+          if (origin == 'Việt Nam (Nội địa)' || origin == 'Việt Nam') {
+            if (pOriginLower.contains('việt nam') ||
+                pOriginLower.contains('đồng tháp') ||
+                pOriginLower.contains('bến tre') ||
+                pOriginLower.contains('bình thuận') ||
+                pOriginLower.contains('bình dương')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (origin == 'Nhập khẩu') {
+            if (!pOriginLower.contains('việt nam') ||
+                pCatLower.contains('nhập khẩu')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (origin == 'Australia (Úc)' || origin == 'Úc') {
+            if (pOriginLower.contains('úc') ||
+                pOriginLower.contains('australia')) {
+              matchesOrigin = true;
+              break;
+            }
+          } else if (pOriginLower.contains(origin.toLowerCase())) {
+            matchesOrigin = true;
+            break;
+          }
+        }
+      }
+
+      // 4. Lọc theo Giá (Price)
       bool matchesPrice = true;
       if (_selectedPriceRanges.isNotEmpty) {
         matchesPrice = false;
         for (String range in _selectedPriceRanges) {
+          if (range == 'Dưới 100.000₫' && p.price < 100000) matchesPrice = true;
+          if (range == '100.000₫ - 200.000₫' &&
+              p.price >= 100000 &&
+              p.price <= 200000)
+            matchesPrice = true;
+          if (range == '200.000₫ - 500.000₫' &&
+              p.price >= 200000 &&
+              p.price <= 500000)
+            matchesPrice = true;
+          if (range == 'Trên 500.000₫' && p.price > 500000) matchesPrice = true;
           if (range == 'Dưới 500.000₫' && p.price < 500000) matchesPrice = true;
-          if (range == '500.000₫ - 1.000.000₫' && p.price >= 500000 && p.price <= 1000000) matchesPrice = true;
-          if (range == '1.000.000₫ - 2.000.000₫' && p.price >= 1000000 && p.price <= 2000000) matchesPrice = true;
-          if (range == '2.000.000₫ - 3.000.000₫' && p.price >= 2000000 && p.price <= 3000000) matchesPrice = true;
-          if (range == 'Trên 3.000.000₫' && p.price > 3000000) matchesPrice = true;
+          if (range == '500.000₫ - 1.000.000₫' &&
+              p.price >= 500000 &&
+              p.price <= 1000000)
+            matchesPrice = true;
+          if (range == '1.000.000₫ - 2.000.000₫' &&
+              p.price >= 1000000 &&
+              p.price <= 2000000)
+            matchesPrice = true;
+          if (range == '2.000.000₫ - 3.000.000₫' &&
+              p.price >= 2000000 &&
+              p.price <= 3000000)
+            matchesPrice = true;
+          if (range == 'Trên 3.000.000₫' && p.price > 3000000)
+            matchesPrice = true;
         }
       }
 
-      return matchesSearch && matchesCategory && matchesPrice;
+      return matchesSearch && matchesCategory && matchesOrigin && matchesPrice;
     }).toList();
 
     if (_selectedSort == 'Giá: Tăng dần') {
@@ -191,7 +281,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Xin chào, ${AuthService.userName}! ',
+                    'Xin chào !',
                     style: TextStyle(
                       color: Colors.grey[700],
                       fontSize: 16,
@@ -216,18 +306,39 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               },
               child: Row(
                 children: [
-                  const Icon(Icons.person_outline, color: Colors.black87, size: 28),
+                  const Icon(
+                    Icons.person_outline,
+                    color: Colors.black87,
+                    size: 28,
+                  ),
                   const SizedBox(width: 8),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Đăng nhập / Đăng ký', style: TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.normal)),
+                      const Text(
+                        'Đăng nhập / Đăng ký',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 12,
+                          fontWeight: FontWeight.normal,
+                        ),
+                      ),
                       Row(
                         children: const [
-                          Text('Tài khoản của tôi', style: TextStyle(color: Colors.black87, fontSize: 12)),
+                          Text(
+                            'Tài khoản của tôi',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 12,
+                            ),
+                          ),
                           SizedBox(width: 4),
-                          Icon(Icons.keyboard_arrow_down, color: Colors.black87, size: 16),
+                          Icon(
+                            Icons.keyboard_arrow_down,
+                            color: Colors.black87,
+                            size: 16,
+                          ),
                         ],
                       ),
                     ],
@@ -238,36 +349,99 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             const SizedBox(width: 16),
             GestureDetector(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CartScreen()),
+                ).then((_) => setState(() {}));
               },
               child: Row(
                 children: [
                   Badge(
                     label: Text('${Cart.items.length}'),
                     backgroundColor: Colors.red,
-                    child: const Icon(Icons.shopping_bag_outlined, color: Colors.black87, size: 24),
+                    child: const Icon(
+                      Icons.shopping_bag_outlined,
+                      color: Colors.black87,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 4),
-                  const Text('Giỏ hàng', style: TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Giỏ hàng',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(width: 12),
                 ],
               ),
-            )
+            ),
           ] else ...[
+            if (AuthService.isAdmin)
+              IconButton(
+                tooltip: 'Về trang quản trị',
+                icon: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: Colors.green,
+                ),
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminDashboardScreen(),
+                    ),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(Icons.local_offer_outlined, color: Colors.amber),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const UserVouchersScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserVouchersScreen(),
+                  ),
+                );
+              },
+            ),
+            Builder(
+              builder: (context) {
+                final unread = DataService.getUnreadNotificationCount(AuthService.userEmail);
+                return IconButton(
+                  tooltip: 'Thông báo',
+                  icon: Badge(
+                    isLabelVisible: unread > 0,
+                    label: Text('$unread', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    backgroundColor: Colors.red,
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UserNotificationsScreen()),
+                    ).then((_) => setState(() {}));
+                  },
+                );
               },
             ),
             IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-              onPressed: () {},
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+              onPressed: () {
+                AuthService.logout();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserHomeScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
             ),
-              IconButton(
-                icon: const Icon(Icons.logout, color: Colors.redAccent),
-                onPressed: () => showSignOutDialog(context),
-              ),
           ],
         ],
       ),
@@ -303,11 +477,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         },
                         decoration: InputDecoration(
                           hintText: 'Tìm "Táo Envy", xoài, sầu riêng...',
-                          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                          prefixIcon: const Icon(Icons.search, color: Colors.green, size: 24),
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.green,
+                            size: 24,
+                          ),
                           suffixIcon: _searchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    color: Colors.grey,
+                                    size: 20,
+                                  ),
                                   onPressed: () {
                                     setState(() {
                                       _searchController.clear();
@@ -326,11 +511,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Colors.green, width: 2),
+                            borderSide: const BorderSide(
+                              color: Colors.green,
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -352,7 +543,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         });
                       },
                       offset: const Offset(0, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       itemBuilder: (BuildContext context) {
                         return _sortOptions.map((String value) {
                           return PopupMenuItem<String>(
@@ -360,11 +553,21 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             child: Row(
                               children: [
                                 if (value == _selectedSort)
-                                  const Icon(Icons.check, size: 16, color: Colors.green)
+                                  const Icon(
+                                    Icons.check,
+                                    size: 16,
+                                    color: Colors.green,
+                                  )
                                 else
                                   const SizedBox(width: 16),
                                 const SizedBox(width: 8),
-                                Text(value, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                Text(
+                                  value,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
                               ],
                             ),
                           );
@@ -375,7 +578,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         children: [
                           Icon(Icons.sort, color: Colors.green, size: 20),
                           SizedBox(width: 6),
-                          Text('Sắp xếp', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)),
+                          Text(
+                            'Sắp xếp',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                              fontSize: 13,
+                            ),
+                          ),
                           SizedBox(width: 2),
                           Icon(Icons.arrow_drop_down, color: Colors.grey),
                         ],
@@ -391,7 +601,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    Text('Gợi ý:', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500)),
+                    Text(
+                      'Gợi ý:',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     _buildQuickTag('Táo Envy', isHot: true),
                     _buildQuickTag('Trái Cây Nhiệt Đới'),
@@ -453,62 +670,463 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Price Filter & BO LOC
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 12.0),
-                    child: Icon(Icons.filter_alt_outlined, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 8),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 16.0),
-                    child: Text('BỘ LỌC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
+              // =======================================================
+              // BỘ LỌC TÌM KIẾM (LỌC THEO GIÁ, NGUỒN GỐC, DANH MỤC)
+              // =======================================================
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Header BỘ LỌC
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                      child: Theme(
-                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          title: const Text('Lọc giá', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                          children: _priceRanges.map((range) {
-                            return Column(
-                              children: [
-                                const Divider(height: 1),
-                                CheckboxListTile(
-                                  title: Text(range, style: TextStyle(color: Colors.grey[800], fontSize: 14)),
-                                  value: _selectedPriceRanges.contains(range),
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _selectedPriceRanges.add(range);
-                                      } else {
-                                        _selectedPriceRanges.remove(range);
-                                      }
-                                    });
-                                  },
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  activeColor: const Color(0xFF1976D2),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                                  visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.filter_alt_outlined,
+                            color: Colors.green,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'BỘ LỌC SẢN PHẨM',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (_hasActiveFilters) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$_activeFilterCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (_hasActiveFilters || _searchQuery.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: _resetFilters,
+                              icon: const Icon(
+                                Icons.refresh,
+                                size: 16,
+                                color: Colors.red,
+                              ),
+                              label: const Text(
+                                'Đặt lại',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    const Divider(height: 1),
+
+                    // 1. Lọc theo Giá
+                    Theme(
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.attach_money,
+                          color: Colors.green,
+                          size: 20,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Lọc theo Giá',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            if (_selectedPriceRanges.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '(${_selectedPriceRanges.length})',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedPriceRanges.isEmpty
+                              ? 'Tất cả mức giá'
+                              : _selectedPriceRanges.join(', '),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _priceRanges.map((range) {
+                          final isSelected = _selectedPriceRanges.contains(
+                            range,
+                          );
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              CheckboxListTile(
+                                title: Text(
+                                  range,
+                                  style: TextStyle(
+                                    color: Colors.grey[800],
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedPriceRanges.add(range);
+                                    } else {
+                                      _selectedPriceRanges.remove(range);
+                                    }
+                                  });
+                                },
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                activeColor: Colors.green,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                visualDensity: const VisualDensity(
+                                  horizontal: 0,
+                                  vertical: -4,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 2. Lọc theo Nguồn gốc (Origin)
+                    Theme(
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.public,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Lọc theo Nguồn gốc',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            if (_selectedOrigins.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '(${_selectedOrigins.length})',
+                                style: const TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedOrigins.isEmpty
+                              ? 'Tất cả xuất xứ'
+                              : _selectedOrigins.join(', '),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _originOptions.map((origin) {
+                          final isSelected = _selectedOrigins.contains(origin);
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              CheckboxListTile(
+                                title: Text(
+                                  origin,
+                                  style: TextStyle(
+                                    color: Colors.grey[800],
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedOrigins.add(origin);
+                                    } else {
+                                      _selectedOrigins.remove(origin);
+                                    }
+                                  });
+                                },
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                activeColor: Colors.blue,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                visualDensity: const VisualDensity(
+                                  horizontal: 0,
+                                  vertical: -4,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 3. Lọc theo Danh mục (Category)
+                    Theme(
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const Icon(
+                          Icons.category_outlined,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Lọc theo Danh mục',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            if (_selectedCategory != 'Tất cả') ...[
+                              const SizedBox(width: 6),
+                              const Text(
+                                '(1)',
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          _selectedCategory,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        children: _categories.map((cat) {
+                          final catName = cat['name']!;
+                          final isSelected = _selectedCategory == catName;
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              RadioListTile<String>(
+                                title: Text(
+                                  catName,
+                                  style: TextStyle(
+                                    color: Colors.grey[800],
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                value: catName,
+                                groupValue: _selectedCategory,
+                                onChanged: (String? val) {
+                                  setState(() {
+                                    _selectedCategory = val ?? 'Tất cả';
+                                  });
+                                },
+                                activeColor: Colors.orange,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                visualDensity: const VisualDensity(
+                                  horizontal: 0,
+                                  vertical: -4,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
+
+              // Filter Chips đang hoạt động
+              if (_hasActiveFilters || _searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'Đang lọc:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      Chip(
+                        avatar: const Icon(
+                          Icons.search,
+                          size: 14,
+                          color: Colors.green,
+                        ),
+                        label: Text(
+                          'Tìm: "$_searchQuery"',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.green.shade50,
+                        side: BorderSide(color: Colors.green.shade200),
+                      ),
+                    if (_selectedCategory != 'Tất cả')
+                      Chip(
+                        avatar: const Icon(
+                          Icons.category,
+                          size: 14,
+                          color: Colors.orange,
+                        ),
+                        label: Text(
+                          _selectedCategory,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedCategory = 'Tất cả';
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.orange.shade50,
+                        side: BorderSide(color: Colors.orange.shade200),
+                      ),
+                    ..._selectedOrigins.map(
+                      (orig) => Chip(
+                        avatar: const Icon(
+                          Icons.public,
+                          size: 14,
+                          color: Colors.blue,
+                        ),
+                        label: Text(orig, style: const TextStyle(fontSize: 11)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedOrigins.remove(orig);
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.blue.shade50,
+                        side: BorderSide(color: Colors.blue.shade200),
+                      ),
+                    ),
+                    ..._selectedPriceRanges.map(
+                      (range) => Chip(
+                        avatar: const Icon(
+                          Icons.attach_money,
+                          size: 14,
+                          color: Colors.green,
+                        ),
+                        label: Text(
+                          range,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedPriceRanges.remove(range);
+                          });
+                        },
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.green.shade50,
+                        side: BorderSide(color: Colors.green.shade200),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
 
               // Title & Search/Filter Status
               Row(
@@ -520,13 +1138,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       Text(
                         _searchQuery.isNotEmpty
                             ? 'Kết quả cho "$_searchQuery"'
-                            : (_selectedCategory == 'Tất cả' ? 'Trái Cây Tươi Mới' : _selectedCategory),
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                            : (_selectedCategory == 'Tất cả'
+                                  ? 'Trái Cây Tươi Mới'
+                                  : _selectedCategory),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Hiển thị ${_filteredProducts.length} sản phẩm',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -539,31 +1166,100 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           _selectedCategory = 'Tất cả';
                         });
                       },
-                      icon: const Icon(Icons.refresh, size: 16, color: Colors.red),
-                      label: const Text('Đặt lại', style: TextStyle(color: Colors.red, fontSize: 12)),
+                      icon: const Icon(
+                        Icons.refresh,
+                        size: 16,
+                        color: Colors.red,
+                      ),
+                      label: const Text(
+                        'Đặt lại',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
                     ),
                 ],
               ),
               const SizedBox(height: 16),
 
-              // Product Grid
+              // Product Grid / Search Empty State
               _filteredProducts.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Center(child: Text('Không tìm thấy sản phẩm nào!')),
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 40,
+                        horizontal: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off_rounded,
+                            size: 64,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _searchQuery.isNotEmpty
+                                ? 'Không tìm thấy kết quả cho "$_searchQuery"'
+                                : 'Không tìm thấy sản phẩm nào!',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Thử nhập từ khóa khác như "Táo Envy", "Xoài", hoặc tên xuất xứ để tìm kiếm.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          if (_searchQuery.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                              icon: const Icon(Icons.clear, size: 18),
+                              label: const Text('Xóa từ khóa tìm kiếm'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     )
                   : GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 0.46, // Đủ chiều cao cho thẻ chi tiết nguồn gốc và độ tươi
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.46, // Đủ chiều cao cho thẻ chi tiết nguồn gốc và độ tươi
+                          ),
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
-                        return _buildProductCard(context, _filteredProducts[index]);
+                        return _buildProductCard(
+                          context,
+                          _filteredProducts[index],
+                        );
                       },
                     ),
             ],
@@ -574,36 +1270,93 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          if (index == 1) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen())).then((_) => setState(() {}));
-          } else if (index == 2) {
-            if (AuthService.isLoggedIn) {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const UserProfileScreen())).then((_) => setState(() {}));
-            } else {
-              _showLoginPopover(context);
+          if (AuthService.isAdmin) {
+            if (index == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserProfileScreen(),
+                ),
+              ).then((_) => setState(() {}));
+            }
+          } else {
+            if (index == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CartScreen()),
+              ).then((_) => setState(() {}));
+            } else if (index == 2) {
+              if (AuthService.isLoggedIn) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserProfileScreen(),
+                  ),
+                ).then((_) => setState(() {}));
+              } else {
+                _showLoginPopover(context);
+              }
             }
           }
         },
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(
-            icon: Cart.items.isEmpty 
-              ? const Icon(Icons.shopping_cart)
-              : Badge(
-                  label: Text('${Cart.items.length}'),
-                  backgroundColor: Colors.red,
-                  child: const Icon(Icons.shopping_cart),
+        items: AuthService.isAdmin
+            ? const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Trang chủ',
                 ),
-            label: 'Giỏ hàng',
-          ),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
-        ],
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Cá nhân',
+                ),
+              ]
+            : [
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Trang chủ',
+                ),
+                BottomNavigationBarItem(
+                  icon: Cart.items.isEmpty
+                      ? const Icon(Icons.shopping_cart)
+                      : Badge(
+                          label: Text('${Cart.items.length}'),
+                          backgroundColor: Colors.red,
+                          child: const Icon(Icons.shopping_cart),
+                        ),
+                  label: 'Giỏ hàng',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Cá nhân',
+                ),
+              ],
       ),
+      floatingActionButton: AuthService.isAdmin
+          ? null
+          : FloatingActionButton(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              tooltip: 'Hỗ trợ & Chat trực tuyến',
+              onPressed: () {
+                if (!AuthService.isLoggedIn) {
+                  _showLoginPopover(context);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UserSupportChatScreen(),
+                    ),
+                  );
+                }
+              },
+              child: const Icon(Icons.support_agent_rounded, size: 28),
+            ),
     );
   }
 
   Widget _buildQuickTag(String tag, {bool isHot = false}) {
-    final isSelected = (_searchQuery.toLowerCase() == tag.toLowerCase()) ||
+    final isSelected =
+        (_searchQuery.toLowerCase() == tag.toLowerCase()) ||
         (_selectedCategory.toLowerCase() == tag.toLowerCase());
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
@@ -639,14 +1392,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isHot) ...[
-                const Icon(Icons.local_fire_department, size: 14, color: Colors.red),
+                const Icon(
+                  Icons.local_fire_department,
+                  size: 14,
+                  color: Colors.red,
+                ),
                 const SizedBox(width: 4),
               ],
               Text(
                 tag,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: (isSelected || isHot) ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: (isSelected || isHot)
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                   color: isSelected
                       ? Colors.white
                       : (isHot ? Colors.red.shade800 : Colors.black87),
@@ -675,7 +1434,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     color: Colors.amber.shade100,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.wb_sunny_rounded, color: Colors.orange, size: 18),
+                  child: const Icon(
+                    Icons.wb_sunny_rounded,
+                    color: Colors.orange,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 const Text(
@@ -727,7 +1490,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             },
             itemBuilder: (context, index) {
               final banner = _seasonalBanners[index];
-              final List<Color> gradientColors = banner['gradient'] as List<Color>;
+              final List<Color> gradientColors =
+                  banner['gradient'] as List<Color>;
 
               return GestureDetector(
                 onTap: () {
@@ -762,15 +1526,16 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           child: Image.network(
                             banner['image'],
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: gradientColors,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: gradientColors,
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
                           ),
                         ),
                         // Dark gradient overlay for readability
@@ -799,7 +1564,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.amber,
                                       borderRadius: BorderRadius.circular(20),
@@ -815,7 +1583,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.3),
                                       borderRadius: BorderRadius.circular(20),
@@ -841,7 +1612,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       shadows: [
-                                        Shadow(color: Colors.black54, blurRadius: 4),
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 4,
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -859,10 +1633,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                   Row(
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.green,
-                                          borderRadius: BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                         ),
                                         child: const Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -876,7 +1655,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                               ),
                                             ),
                                             SizedBox(width: 4),
-                                            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                                            Icon(
+                                              Icons.arrow_forward_rounded,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -960,7 +1743,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   width: 48,
                   height: 48,
                   color: Colors.grey[200],
-                  child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 24),
+                  child: const Icon(
+                    Icons.image_not_supported,
+                    color: Colors.grey,
+                    size: 24,
+                  ),
                 ),
               ),
             ),
@@ -984,13 +1771,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Widget _buildProductCard(BuildContext context, Product product) {
     // Fake old price for UI demonstration (-17% discount)
-    final oldPrice = product.price * 1.17; 
-    
+    final oldPrice = product.price * 1.17;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ProductDetailScreen(product: product)),
+          MaterialPageRoute(
+            builder: (context) => ProductDetailScreen(product: product),
+          ),
         ).then((_) => setState(() {}));
       },
       child: Container(
@@ -1015,7 +1804,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) => Container(
                           color: Colors.grey[100],
-                          child: const Center(child: Icon(Icons.image_not_supported, color: Colors.grey)),
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -1024,7 +1818,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     top: 12,
                     left: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: const BoxDecoration(
                         color: Color(0xFF2B6DE1), // Blue badge
                         borderRadius: BorderRadius.only(
@@ -1034,7 +1831,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       ),
                       child: const Text(
                         '-38%',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -1042,16 +1843,29 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     top: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: const BoxDecoration(
                         color: Colors.red,
-                        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12)),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                        ),
                       ),
                       child: const Row(
                         children: [
                           Icon(Icons.flash_on, color: Colors.yellow, size: 14),
-                          Text('FLASH SALE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, fontStyle: FontStyle.italic)),
-                        ]
+                          Text(
+                            'FLASH SALE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1088,7 +1902,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
                   // Freshness badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(4),
@@ -1163,10 +1980,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   Row(
                     children: [
                       Row(
-                        children: List.generate(5, (index) => const Icon(Icons.star_border, color: Colors.amber, size: 14)),
+                        children: List.generate(
+                          5,
+                          (index) => const Icon(
+                            Icons.star_border,
+                            color: Colors.amber,
+                            size: 14,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 4),
-                      const Text('0 đánh giá', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text(
+                        '0 đánh giá',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1175,51 +2002,80 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     'Đã bán: 4563',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                  const SizedBox(height: 12),
-                  // Add to Cart Button
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        Cart.addItem(product, 1);
-                      });
-                      SnackbarHelper.showSuccess(context, 'Đã thêm ${product.name} vào giỏ hàng');
-                    },
-                    child: Container(
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.amber, width: 1.5),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Center(
-                              child: Text(
-                                'THÊM VÀO GIỎ',
-                                style: TextStyle(
-                                  color: Color(0xFF001E4C), // Dark blue text
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
+                  if (!AuthService.isAdmin) ...[
+                    const SizedBox(height: 12),
+                    // Add to Cart Button
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          Cart.addItem(product, 1);
+                        });
+                        SnackbarHelper.showSuccess(
+                          context,
+                          'Đã thêm ${product.name} vào giỏ hàng',
+                        );
+                      },
+                      child: Container(
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: Colors.amber, width: 1.5),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Center(
+                                child: Text(
+                                  'THÊM VÀO GIỎ',
+                                  style: TextStyle(
+                                    color: Color(0xFF001E4C), // Dark blue text
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Colors.amber,
-                              shape: BoxShape.circle,
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                color: Colors.amber,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: Color(0xFF001E4C),
+                                  size: 18,
+                                ),
+                              ),
                             ),
-                            child: const Center(
-                              child: Icon(Icons.shopping_bag_outlined, color: Color(0xFF001E4C), size: 18),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'XEM CHI TIẾT',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1288,7 +2144,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       children: [
                         const Text(
                           'ĐĂNG NHẬP TÀI KHOẢN',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: Colors.black87),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.normal,
+                            color: Colors.black87,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
@@ -1302,11 +2162,27 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           controller: emailController,
                           decoration: InputDecoration(
                             hintText: 'Email',
-                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300)),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.black87)),
+                            hintStyle: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 14,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.black87),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1315,26 +2191,54 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           obscureText: true,
                           decoration: InputDecoration(
                             hintText: 'Mật khẩu',
-                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300)),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.black87)),
+                            hintStyle: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 14,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.black87),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
                         RichText(
                           textAlign: TextAlign.center,
                           text: TextSpan(
-                            style: const TextStyle(fontSize: 11, color: Colors.grey, height: 1.5),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                              height: 1.5,
+                            ),
                             children: [
-                              const TextSpan(text: 'This site is protected by reCAPTCHA and the Google '),
-                              TextSpan(text: 'Privacy Policy', style: TextStyle(color: Colors.blue.shade600)),
+                              const TextSpan(
+                                text: 'This site is protected by reCAPTCHA and the Google ',
+                              ),
+                              TextSpan(
+                                text: 'Privacy Policy',
+                                style: TextStyle(color: Colors.blue.shade600),
+                              ),
                               const TextSpan(text: ' and '),
-                              TextSpan(text: 'Terms of Service', style: TextStyle(color: Colors.blue.shade600)),
+                              TextSpan(
+                                text: 'Terms of Service',
+                                style: TextStyle(color: Colors.blue.shade600),
+                              ),
                               const TextSpan(text: ' apply.'),
-                            ]
-                          )
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         SizedBox(
@@ -1343,27 +2247,41 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1A1A1A), // Đen
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(22),
+                              ),
                             ),
                             onPressed: () async {
                               final email = emailController.text.trim();
                               final pass = passwordController.text.trim();
                               if (email.isEmpty || pass.isEmpty) {
-                                SnackbarHelper.showError(context, 'Vui lòng nhập đủ thông tin');
+                                SnackbarHelper.showError(
+                                  context,
+                                  'Vui lòng nhập đủ thông tin',
+                                );
                                 return;
                               }
                               try {
-                                final role = await AuthService.login(email, pass);
+                                final role = await AuthService.login(
+                                  email,
+                                  pass,
+                                );
                                 if (context.mounted) {
                                   Navigator.pop(context); // Đóng popover
                                   if (role == 'admin') {
                                     Navigator.pushReplacement(
-                                      context, 
-                                      MaterialPageRoute(builder: (context) => const AdminDashboardScreen())
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const AdminDashboardScreen(),
+                                      ),
                                     );
                                   } else {
                                     setState(() {}); // Làm mới home screen
-                                    SnackbarHelper.showSuccess(context, 'Đăng nhập thành công');
+                                    SnackbarHelper.showSuccess(
+                                      context,
+                                      'Đăng nhập thành công',
+                                    );
                                   }
                                 }
                               } catch (e) {
@@ -1377,36 +2295,79 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                 }
                               }
                             },
-                            child: const Text('ĐĂNG NHẬP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            child: const Text(
+                              'ĐĂNG NHẬP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 18),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Khách hàng mới? ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            const Text(
+                              'Khách hàng mới? ',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
                             GestureDetector(
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen()));
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const RegisterScreen(),
+                                  ),
+                                );
                               },
-                              child: Text('Tạo tài khoản', style: TextStyle(color: Colors.blue.shade600, fontSize: 12)),
-                            )
-                          ]
+                              child: Text(
+                                'Tạo tài khoản',
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Quên mật khẩu? ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            const Text(
+                              'Quên mật khẩu? ',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
                             GestureDetector(
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()));
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
+                                );
                               },
-                              child: Text('Khôi phục mật khẩu', style: TextStyle(color: Colors.blue.shade600, fontSize: 12)),
-                            )
-                          ]
+                              child: Text(
+                                'Khôi phục mật khẩu',
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1416,7 +2377,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             ),
           ),
         );
-      }
+      },
     );
   }
 }
