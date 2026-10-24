@@ -10,9 +10,14 @@ class AdminChatScreen extends StatefulWidget {
 }
 
 class _AdminChatScreenState extends State<AdminChatScreen> {
+  String _searchQuery = '';
   @override
   Widget build(BuildContext context) {
-    final conversations = DataService.getAllConversations();
+    final conversations = DataService.getAllConversations().where((c) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return c.customerName.toLowerCase().contains(q) || c.customerEmail.toLowerCase().contains(q) || c.lastMessage.toLowerCase().contains(q);
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -20,7 +25,22 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
       ),
-      body: conversations.isEmpty
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm hội thoại theo tên, email, tin nhắn...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val.trim()),
+            ),
+          ),
+          Expanded(
+            child: conversations.isEmpty
           ? const Center(child: Text('Chưa có cuộc hội thoại hỗ trợ nào'))
           : ListView.builder(
               padding: const EdgeInsets.all(12),
