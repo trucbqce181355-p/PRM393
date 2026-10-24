@@ -71,11 +71,15 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E2C), // Dark theme
+      backgroundColor: const Color(0xFFF7F9FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF252538),
-        title: Text(widget.product != null ? 'Sửa sản phẩm' : 'Thêm trái cây mới', style: const TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0.5,
+        title: Text(
+          widget.product != null ? 'Sửa sản phẩm' : 'Thêm trái cây mới',
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -92,11 +96,11 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
-                      'Giá', 
+                      'Giá (₫)', 
                       (val) => _price = double.tryParse(val!) ?? 0.0, 
-                      '0.00',
+                      '0',
                       keyboardType: TextInputType.number,
-                      initialValue: widget.product != null ? _price.toString() : null,
+                      initialValue: widget.product != null ? _price.toStringAsFixed(0) : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -104,25 +108,33 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Đơn vị', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Text('Đơn vị', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: ['kg', 'hộp', 'quả', 'nải', 'thùng', 'bó', 'gram'].contains(_unit) ? _unit : 'kg',
-                          style: const TextStyle(color: Colors.white),
-                          dropdownColor: const Color(0xFF252538),
+                          style: const TextStyle(color: Colors.black87),
+                          dropdownColor: Colors.white,
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: const Color(0xFF252538),
+                            fillColor: Colors.white,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Colors.green, width: 1.5),
                             ),
                           ),
                           items: ['kg', 'hộp', 'quả', 'nải', 'thùng', 'bó', 'gram'].map((String item) {
                             return DropdownMenuItem<String>(
                               value: item,
-                              child: Text(item),
+                              child: Text(item, style: const TextStyle(color: Colors.black87)),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -154,7 +166,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Phân loại', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Text('Phân loại', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         Builder(
                           builder: (context) {
@@ -170,15 +182,23 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                                   
                             return DropdownButtonFormField<String>(
                               value: cats.any((c) => c.name == _category) ? _category : cats.first.name,
-                              style: const TextStyle(color: Colors.white),
-                              dropdownColor: const Color(0xFF252538),
+                              style: const TextStyle(color: Colors.black87),
+                              dropdownColor: Colors.white,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFF252538),
+                                fillColor: Colors.white,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Colors.green, width: 1.5),
                                 ),
                               ),
                               items: cats.map((cat) {
@@ -186,6 +206,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                                   value: cat.name,
                                   child: Text(
                                     cat.name,
+                                    style: const TextStyle(color: Colors.black87),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 );
@@ -205,7 +226,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Hình ảnh sản phẩm (Tùy chọn)', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              const Text('Hình ảnh sản phẩm (Tùy chọn)', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -213,8 +234,9 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF252538),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
                       image: _imageUrl.isNotEmpty
                           ? DecorationImage(
                               image: _imageUrl.startsWith('http')
@@ -233,8 +255,13 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                     icon: const Icon(Icons.upload_file),
                     label: const Text('Chọn hình ảnh từ máy'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.green.shade50,
+                      foregroundColor: Colors.green.shade800,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: Colors.green.shade200),
+                      ),
                     ),
                     onPressed: () async {
                       final ImagePicker picker = ImagePicker();
@@ -251,14 +278,18 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _saveProduct,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text(widget.product != null ? 'Cập nhật' : 'Lưu Sản Phẩm', style: const TextStyle(fontSize: 18, color: Colors.white)),
+                  child: Text(
+                    widget.product != null ? 'Cập nhật sản phẩm' : 'Lưu sản phẩm',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -272,21 +303,30 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        Text(label, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextFormField(
           initialValue: initialValue,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.black87),
           maxLines: maxLines,
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.grey),
+            hintStyle: TextStyle(color: Colors.grey.shade400),
             filled: true,
-            fillColor: const Color(0xFF252538),
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.green, width: 1.5),
             ),
           ),
           validator: (value) {
