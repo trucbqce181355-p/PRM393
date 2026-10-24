@@ -304,6 +304,28 @@ class DataService {
     });
   }
 
+  static Future<void> markMessagesAsRead(String conversationId, String readerRole) async {
+    bool updated = false;
+    for (var m in chatMessages) {
+      if (m.conversationId.toLowerCase() == conversationId.toLowerCase() && m.senderRole != readerRole && !m.isRead) {
+        m.isRead = true;
+        updated = true;
+      }
+    }
+    if (updated) {
+      await _saveChatMessages();
+      try {
+        var col = MongoDBService.getCollection("chat_messages");
+        await col.updateMany(
+          mongo.where.eq('conversationId', conversationId).ne('senderRole', readerRole),
+          mongo.modify.set('isRead', true),
+        );
+      } catch (e) {
+        print("MongoDB error markMessagesAsRead: $e");
+      }
+    }
+  }
+
   static Future<void> sendChatMessage(ChatMessage message) async {
     chatMessages.add(message);
     await _saveChatMessages();
