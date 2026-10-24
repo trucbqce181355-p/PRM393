@@ -4,6 +4,9 @@ import '../models/order.dart';
 import '../models/voucher.dart';
 import '../models/customer.dart';
 import '../models/category.dart';
+import '../models/chat_message.dart';
+import '../models/app_notification.dart';
+import '../models/return_request.dart';
 import 'mongodb_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -13,6 +16,10 @@ class DataService {
   static List<Voucher> vouchers = [];
   static List<Customer> customers = [];
   static List<Category> categories = [];
+  static List<ChatMessage> chatMessages = [];
+  static Set<String> closedConversations = {};
+  static List<AppNotification> notifications = [];
+  static List<ReturnRequest> returnRequests = [];
 
   static late Box _box;
 
@@ -502,4 +509,249 @@ class DataService {
       }
     }
   }
+
+  // --- QUẢN LÝ YÊU CẦU ĐỔI TRẢ & HỖ TRỢ KHÁCH HÀNG ---
+  static Future<void> _saveReturnRequests() async {
+    try {
+      await _box.put('return_requests', returnRequests.map((e) => e.toJson()).toList());
+    } catch (_) {}
+  }
+
+  static Future<void> addReturnRequest(ReturnRequest req) async {
+    returnRequests.insert(0, req);
+    await _saveReturnRequests();
+
+    try {
+      var col = MongoDBService.getCollection("return_requests");
+      await col.insertOne(req.toJson());
+    } catch (e) {
+      print("MongoDB Error (addReturnRequest): $e");
+    }
+  }
+
+  static Future<void> updateReturnRequest(ReturnRequest updatedReq) async {
+    final index = returnRequests.indexWhere((r) => r.id == updatedReq.id);
+    if (index != -1) {
+      returnRequests[index] = updatedReq;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', updatedReq.id),
+          mongo.modify
+              .set('status', updatedReq.status)
+              .set('adminReply', updatedReq.adminReply)
+              .set('updatedAt', updatedReq.updatedAt?.toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (updateReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> cancelReturnRequest(String requestId) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: 'cancelled',
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', 'cancelled')
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (cancelReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> processReturnRequest(
+    String requestId, {
+    required String status,
+    required String reply,
+  }) async {
+    final index = returnRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      final req = returnRequests[index];
+      final updated = req.copyWith(
+        status: status,
+        adminReply: reply,
+        updatedAt: DateTime.now(),
+      );
+      returnRequests[index] = updated;
+      await _saveReturnRequests();
+
+      try {
+        var col = MongoDBService.getCollection("return_requests");
+        await col.updateOne(
+          mongo.where.eq('id', requestId),
+          mongo.modify
+              .set('status', status)
+              .set('adminReply', reply)
+              .set('updatedAt', DateTime.now().toIso8601String()),
+        );
+      } catch (e) {
+        print("MongoDB Error (processReturnRequest): $e");
+      }
+    }
+  }
+
+  static Future<void> replyReturnRequest({
+    required String requestId,
+    required String status,
+    required String reply,
+  }) async {
+    await processReturnRequest(requestId, status: status, reply: reply);
+  }
+
+  static List<Order> getOrdersForCustomer(String? email) {
+    if (email == null || email.trim().isEmpty) return [];
+    final target = email.trim().toLowerCase();
+    return orders
+        .where((o) => o.customerEmail?.trim().toLowerCase() == target)
+        .toList();
+  }
+
+  // --- QUẢN LÝ CHAT & HỖ TRỢ KHÁCH HÀNG (MODULE 11) ---
+  static Future<void> _saveChatMessages() async {
+    try {
+      await _box.put('chat_messages', chatMessages.map((e) => e.toJson()).toList());
+      await _box.put('closed_conversations', closedConversations.toList());
+    } catch (_) {}
+  }
+
+  static Future<void> sendChatMessage(ChatMessage message) async {
+    chatMessages.add(message);
+    await _saveChatMessages();
+
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.insertOne(message.toJson());
+    } catch (e) {
+      print("MongoDB Error (sendChatMessage): $e");
+    }
+
+    if (message.senderRole == 'user') {
+      _triggerAutoReplyIfNeeded(message.conversationId, message.senderName);
+    }
+  }
+
+  static void _triggerAutoReplyIfNeeded(String conversationId, String customerName) {
+    Future.delayed(const Duration(milliseconds: 1200), () async {
+      final convMsgs = getMessagesForConversation(conversationId);
+      if (convMsgs.isNotEmpty && convMsgs.last.senderRole == 'user') {
+        final botMsg = ChatMessage(
+          id: 'msg_bot_${DateTime.now().millisecondsSinceEpoch}',
+          conversationId: conversationId,
+          senderEmail: 'support@fruitopia.vn',
+          senderName: 'CSKH Fruitopia',
+          senderRole: 'admin',
+          message: 'Chào $customerName! Chuyên viên tư vấn Fruitopia đã nhận được tin nhắn và đang hỗ trợ bạn ngay.',
+          createdAt: DateTime.now(),
+          isRead: false,
+        );
+        chatMessages.add(botMsg);
+        await _saveChatMessages();
+      }
+    });
+  }
+
+  static List<ChatMessage> getMessagesForConversation(String conversationId) {
+    return chatMessages
+        .where((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase())
+        .toList();
+  }
+
+  static List<ChatConversation> getAllConversations() {
+    final Map<String, List<ChatMessage>> groups = {};
+    for (var m in chatMessages) {
+      final key = m.conversationId.toLowerCase();
+      groups.putIfAbsent(key, () => []).add(m);
+    }
+
+    final List<ChatConversation> result = [];
+    for (var entry in groups.entries) {
+      final msgs = entry.value;
+      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final last = msgs.last;
+      final unread = msgs.where((m) => !m.isRead && m.senderRole == 'user').length;
+      final customer = customers.firstWhere(
+        (c) => c.email.toLowerCase() == entry.key,
+        orElse: () => Customer(id: '', name: last.senderRole == 'user' ? last.senderName : 'Khách hàng', email: entry.key, phone: '', totalSpent: 0, totalOrders: 0),
+      );
+
+      result.add(
+        ChatConversation(
+          id: entry.key,
+          customerEmail: entry.key,
+          customerName: customer.name.isNotEmpty ? customer.name : (last.senderRole == 'user' ? last.senderName : 'Khách hàng'),
+          customerPhone: customer.phone,
+          lastMessage: last.message.isNotEmpty ? last.message : (last.imageUrl != null ? '[Hình ảnh]' : '[Tệp đính kèm]'),
+          lastMessageTime: last.createdAt,
+          unreadCount: unread,
+          isClosed: closedConversations.contains(entry.key),
+          isSupportAgentOnline: true,
+        ),
+      );
+    }
+
+    result.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    return result;
+  }
+
+  static Future<void> markMessagesAsRead(String conversationId, String readerRole) async {
+    bool hasChanged = false;
+    for (var m in chatMessages) {
+      if (m.conversationId.toLowerCase() == conversationId.toLowerCase()) {
+        if (!m.isRead && m.senderRole != readerRole) {
+          m.isRead = true;
+          hasChanged = true;
+        }
+      }
+    }
+    if (hasChanged) {
+      await _saveChatMessages();
+      try {
+        var col = MongoDBService.getCollection("chat_messages");
+        await col.updateMany(
+          mongo.where.eq('conversationId', conversationId).ne('senderRole', readerRole),
+          mongo.modify.set('isRead', true),
+        );
+      } catch (e) {
+        print("MongoDB error markMessagesAsRead: $e");
+      }
+    }
+  }
+
+  static Future<void> closeConversation(String conversationId) async {
+    closedConversations.add(conversationId.toLowerCase());
+    await _saveChatMessages();
+  }
+
+  static Future<void> reopenConversation(String conversationId) async {
+    closedConversations.remove(conversationId.toLowerCase());
+    await _saveChatMessages();
+  }
+
+  static Future<void> clearConversationMessages(String conversationId) async {
+    chatMessages.removeWhere((m) => m.conversationId.toLowerCase() == conversationId.toLowerCase());
+    await _saveChatMessages();
+    try {
+      var col = MongoDBService.getCollection("chat_messages");
+      await col.deleteMany(mongo.where.eq('conversationId', conversationId));
+    } catch (e) {
+      print("MongoDB error clearConversationMessages: $e");
+    }
+  }
 }
+
