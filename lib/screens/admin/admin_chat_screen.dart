@@ -36,7 +36,21 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     ),
                     title: Text(c.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(c.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: Text('${c.lastMessageTime.hour}:${c.lastMessageTime.minute.toString().padLeft(2, '0')}'),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('${c.lastMessageTime.hour}:${c.lastMessageTime.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 11)),
+                        if (c.unreadCount > 0) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                            child: Text('${c.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 );
               },
