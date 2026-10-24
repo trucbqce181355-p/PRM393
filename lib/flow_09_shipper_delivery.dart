@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'services/delivery_confirmation_service.dart';
 import 'order_service.dart';
+import 'services/shipper_order_workflow.dart';
 import 'snackbar_helper.dart';
 
 class ShipperOrdersScreen extends StatefulWidget {
@@ -41,11 +40,11 @@ class _ShipperOrdersScreenState extends State<ShipperOrdersScreen> {
 
   Future<void> _updateOrder(
     String orderId,
-    Map<String, dynamic> updates,
+    Future<bool> Function() update,
   ) async {
     setState(() => _busyOrderIds.add(orderId));
     try {
-      final updated = await OrderService.updateOrder(orderId, updates);
+      final updated = await update();
       if (!updated) {
         throw StateError('Không tìm thấy đơn hàng #$orderId.');
       }
@@ -85,11 +84,11 @@ class _ShipperOrdersScreenState extends State<ShipperOrdersScreen> {
   }
 
   Future<void> _acceptOrder(Map<String, dynamic> order) async {
-    await _updateOrder(order['id'].toString(), {
-      'status': 'Đang giao',
-      'shipperName': 'Shipper Demo',
-      'acceptedAt': DateTime.now().toIso8601String(),
-    });
+    final orderId = order['id'].toString();
+    await _updateOrder(
+      orderId,
+      () => ShipperOrderWorkflow.markAsDelivering(orderId),
+    );
   }
 
   Future<void> _checkInAndComplete(Map<String, dynamic> order) async {
@@ -102,19 +101,10 @@ class _ShipperOrdersScreenState extends State<ShipperOrdersScreen> {
       );
       if (photo == null) return;
 
-      final directory = await getApplicationDocumentsDirectory();
-      final extension = photo.name.contains('.')
-          ? photo.name.split('.').last
-          : 'jpg';
-      final savedPhoto = await File(photo.path).copy(
-        '${directory.path}${Platform.pathSeparator}'
-        'delivery-checkin-$orderId-${DateTime.now().millisecondsSinceEpoch}.$extension',
+      final updated = await DeliveryConfirmationService.confirmDelivered(
+        orderId: orderId,
+        photo: photo,
       );
-      final updated = await OrderService.updateOrder(orderId, {
-        'status': 'Đã hoàn thành',
-        'deliveryPhotoPath': savedPhoto.path,
-        'deliveredAt': DateTime.now().toIso8601String(),
-      });
       if (!updated) {
         throw StateError('Không tìm thấy đơn hàng #$orderId.');
       }
