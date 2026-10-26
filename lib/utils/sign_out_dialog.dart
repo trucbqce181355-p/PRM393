@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../screens/auth/auth_gate.dart';
 
 bool _dialogOpen = false;
 
@@ -37,7 +38,11 @@ class _SignOutDialogState extends State<_SignOutDialog> {
     });
     try {
       await AuthService.logout();
-      if (mounted) Navigator.of(context).pop();
+      if (mounted)
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
     } catch (error) {
       if (mounted) {
         setState(

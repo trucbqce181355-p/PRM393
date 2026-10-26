@@ -1,19 +1,24 @@
 const { randomInt, randomUUID } = require('node:crypto');
-const { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, verifyPassword, publicUser } = require('./security');
+const { AuthError, digest, secret, equal, normalizeEmail, validateProfile,
+  validatePassword, hashPassword, verifyPassword, publicUser } = require('./security');
 
 class AuthService {
   constructor({ store, sendEmail, verifyGoogle, now = () => new Date(), config = {} }) {
     this.store = store; this.sendEmail = sendEmail; this.verifyGoogle = verifyGoogle; this.now = now;
     this.config = { otpTtl: 300, attempts: 5, resend: 60, sessionTtl: 604800, ...config };
   }
-  async requestOtp(emailValue, ip) {
+  async requestOtp(emailValue, ip, purpose = 'registration') {
+    if (!['registration', 'password_reset'].includes(purpose)) throw new AuthError(400, 'Mục đích OTP không hợp lệ.');
     const email = normalizeEmail(emailValue), now = this.now();
     await this.store.limit(`otp-ip:${digest(ip)}`, 3600, 20, now);
     await this.store.limit(`otp-email:${digest(email)}`, 3600, 10, now);
     await this.store.cooldown(`otp-cooldown:${digest(email)}`, this.config.resend, now);
-    if (await this.store.findEmail(email)) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.');
+    const existing = await this.store.findEmail(email);
+    if (purpose === 'registration' && existing) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.');
+    if (purpose === 'password_reset' && !existing) throw new AuthError(400, 'Không tìm thấy tài khoản với email này.');
+    if (existing) this.requireActive(existing);
     const id = secret(), otp = String(randomInt(100000, 1000000));
-    await this.store.putChallenge({ _id: id, email, otpHash: digest(`${id}:${otp}`),
+    await this.store.putChallenge({ _id: id, email, purpose, otpHash: digest(`${id}:${otp}`),
       state: 'sending', attempts: 0, expiresAt: new Date(now.getTime() + this.config.otpTtl * 1000) });
     try {
       await this.sendEmail(email, otp, this.config.otpTtl);
@@ -48,13 +53,14 @@ class AuthService {
     const challenge = await this.store.claimProof(proofHash, this.now());
     if (!challenge) throw new AuthError(401, 'Xác minh đăng ký đã hết hạn hoặc đã được sử dụng.');
     try {
+      if (challenge.purpose && challenge.purpose !== 'registration') throw new AuthError(403, 'Xác minh này không dành cho đăng ký.');
       const user = await this.store.createUser({ id: `c_${randomUUID()}`,
         email: challenge.email, emailNormalized: challenge.email, emailVerified: true,
         name: name.trim(), phone: phone.trim(), password_hash: await hashPassword(password),
         role: 'customer', totalSpent: 0, totalOrders: 0, memberTier: 'Đồng', isActive: true,
         identityActive: true, created_at: this.now().toISOString() });
       await this.store.consumeProof(proofHash);
-      return { customer: publicUser(user) };
+      return this.issueSession(user);
     } catch (error) {
       // Keep the proof retryable for validation/database failures; unique email prevents two users.
       await this.store.releaseProof(proofHash);
@@ -143,13 +149,9 @@ class AuthService {
   }
   async saveProfile(user, { name, phone, password }) {
     validateProfile(name, phone);
-    const profile = publicUser(user);
-    if (user.sessionProvider === 'google' && !profile.profileCompleted && !profile.hasPassword && !password) {
-      throw new AuthError(400, 'Vui lòng thiết lập mật khẩu khi hoàn tất hồ sơ Google lần đầu.');
-    }
     const fields = { name: name.trim(), phone: phone.trim() };
     if (password) {
-      if (profile.hasPassword) throw new AuthError(409, 'Tài khoản đã có mật khẩu. Không thay đổi mật khẩu ở bước hồ sơ.');
+      if (publicUser(user).hasPassword) throw new AuthError(409, 'Tài khoản đã có mật khẩu. Không thay đổi mật khẩu ở bước hồ sơ.');
       validatePassword(password);
       fields.password_hash = await hashPassword(password);
     }
@@ -159,6 +161,29 @@ class AuthService {
   async logout(token) {
     if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new AuthError(401, 'Phiên đăng nhập không hợp lệ.');
     await this.store.deleteSession(digest(token));
+  }
+  async resetPassword({ registrationToken, password }) {
+    validatePassword(password);
+    if (typeof registrationToken !== 'string') throw new AuthError(401, 'Vui lòng xác minh OTP.');
+    const proofHash = digest(registrationToken);
+    const proof = await this.store.claimProof(proofHash, this.now());
+    if (!proof) throw new AuthError(401, 'Xác minh đã hết hạn hoặc đã được sử dụng.');
+    try {
+      if (proof.purpose !== 'password_reset') throw new AuthError(403, 'Xác minh này không dành cho đặt lại mật khẩu.');
+      const user = await this.store.findEmail(proof.email);
+      if (!user) throw new AuthError(404, 'Không tìm thấy tài khoản.');
+      this.requireActive(user);
+      await this.store.upgradePassword(user.id, await hashPassword(password));
+      await this.store.deleteUserSessions(user.id);
+      await this.store.consumeProof(proofHash);
+    } catch (error) { await this.store.releaseProof(proofHash); throw error; }
+  }
+  async changeAdminPassword(user, { oldPassword, newPassword }) {
+    if (user.role !== 'admin') throw new AuthError(403, 'Không có quyền quản trị.');
+    validatePassword(newPassword);
+    await this.store.limit(`password-user:${digest(user.id)}`, 900, 10, this.now());
+    if (!await verifyPassword(oldPassword, user)) throw new AuthError(400, 'Mật khẩu hiện tại không chính xác.', 'wrong_password');
+    await this.store.upgradePassword(user.id, await hashPassword(newPassword));
   }
 }
 module.exports = { AuthService };

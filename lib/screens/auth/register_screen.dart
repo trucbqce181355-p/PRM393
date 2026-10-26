@@ -2,7 +2,7 @@ import '../../utils/snackbar_helper.dart';
 
 import 'package:flutter/material.dart';
 
-import '../../services/email_otp_service.dart';
+import '../../services/auth_service.dart';
 import 'otp_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -38,7 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await EmailOtpService.sendOtp(email);
+      await AuthService.sendOtp(email);
       if (!mounted) return;
 
       SnackbarHelper.showSuccess(

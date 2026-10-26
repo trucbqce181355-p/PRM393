@@ -46,22 +46,26 @@ class MongoStore {
   constructor(db) { this.db = db; }
   users() { return this.db.collection('users'); }
   findEmail(email) { return this.users().findOne({ emailNormalized: email, identityActive: true }); }
-  findGoogle(uid) { return this.users().findOne({ supabaseUserId: uid, identityActive: true }); }
   findId(id) { return this.users().findOne({ id, identityActive: true }); }
+  findGoogle(uid) { return this.users().findOne({ supabaseUserId: uid, identityActive: true }); }
+  async createUser(user) {
+    try { await this.users().insertOne(user); return user; }
+    catch (error) { if (error.code === 11000) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.'); throw error; }
+  }
+  async updateUser(id, fields) {
+    const user = await this.users().findOneAndUpdate({ id, identityActive: true },
+      { $set: { ...fields, updated_at: new Date().toISOString() } }, { returnDocument: 'after' });
+    if (!user) throw new AuthError(404, 'Không tìm thấy tài khoản.');
+    return user;
+  }
   async upgradePassword(id, hash) {
     await this.users().updateOne({ id, identityActive: true }, {
       $set: { password_hash: hash }, $unset: { password: '', passwordHash: '' },
     });
   }
-  async createUser(user) {
-    try { await this.users().insertOne(user); return user; }
-    catch (error) { if (error.code === 11000) throw new AuthError(409, 'Email đã được đăng ký. Vui lòng đăng nhập.'); throw error; }
-  }
   async updateProfile(id, fields, setPassword) {
     const filter = { id, identityActive: true, isActive: { $ne: false } };
-    if (setPassword) Object.assign(filter, {
-      password_hash: { $in: [null, ''] }, passwordHash: { $in: [null, ''] }, password: { $in: [null, ''] },
-    });
+    if (setPassword) Object.assign(filter, { password_hash: null, passwordHash: null, password: null });
     const user = await this.users().findOneAndUpdate(filter,
       { $set: { ...fields, updated_at: new Date().toISOString() } }, { returnDocument: 'after' });
     if (!user) throw new AuthError(409, 'Tài khoản đã bị khóa hoặc mật khẩu đã được thiết lập. Vui lòng tải lại hồ sơ.');
@@ -86,6 +90,7 @@ class MongoStore {
       { upsert: true, returnDocument: 'after' });
     if (record.count > maximum) throw new AuthError(429, 'Quá nhiều yêu cầu. Vui lòng thử lại sau.');
   }
+  async putChallenge(challenge) { await this.db.collection('auth_challenges').insertOne(challenge); }
   async cooldown(key, seconds, now) {
     try {
       await this.db.collection('auth_limits').findOneAndUpdate({ _id: key,
@@ -98,7 +103,6 @@ class MongoStore {
       throw error;
     }
   }
-  async putChallenge(challenge) { await this.db.collection('auth_challenges').insertOne(challenge); }
   async activateChallenge(id) {
     const current = await this.db.collection('auth_challenges').findOne({ _id: id });
     await this.db.collection('auth_challenges').updateMany({ email: current.email,
@@ -106,6 +110,7 @@ class MongoStore {
     await this.db.collection('auth_challenges').updateOne({ _id: id }, { $set: { state: 'sent' } });
   }
   async removeChallenge(id) { await this.db.collection('auth_challenges').deleteOne({ _id: id }); }
+  // Increment first, even for correct guesses: concurrent guesses cannot exceed the budget.
   async attemptChallenge(id, now, maxAttempts) {
     return this.db.collection('auth_challenges').findOneAndUpdate({ _id: id, state: 'sent',
       expiresAt: { $gt: now }, attempts: { $lt: maxAttempts } },
@@ -132,5 +137,6 @@ class MongoStore {
   async putSession(session) { await this.db.collection('auth_sessions').insertOne(session); }
   getSession(hash, now) { return this.db.collection('auth_sessions').findOne({ _id: hash, expiresAt: { $gt: now } }); }
   async deleteSession(hash) { await this.db.collection('auth_sessions').deleteOne({ _id: hash }); }
+  async deleteUserSessions(id) { await this.db.collection('auth_sessions').deleteMany({ userId: id }); }
 }
 module.exports = { MongoStore, initializeStore, inspectUsers };

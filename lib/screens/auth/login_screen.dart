@@ -2,14 +2,13 @@ import '../../utils/snackbar_helper.dart';
 
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
-import '../admin/admin_dashboard_screen.dart';
-import 'auth_wrapper.dart';
-import 'google_sign_in_screen.dart';
+import '../../repositories/auth_repository.dart';
+import 'auth_gate.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.redirectToCheckout = false});
+  final bool redirectToCheckout;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -41,7 +40,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final role = await AuthService.login(email, password);
+      final role = await AuthRepository.signInWithEmailPassword(
+        email: email,
+        password: password,
+      );
 
       if (!mounted) return;
 
@@ -52,14 +54,20 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+          MaterialPageRoute(
+            builder: (context) =>
+                AuthGate(redirectToCheckout: widget.redirectToCheckout),
+          ),
           (route) => false,
         );
       } else {
         SnackbarHelper.showSuccess(context, 'Đăng nhập thành công!');
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const AuthWrapper()),
+          MaterialPageRoute(
+            builder: (context) =>
+                AuthGate(redirectToCheckout: widget.redirectToCheckout),
+          ),
           (route) => false,
         );
       }
@@ -80,15 +88,17 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
-      final launched = await AuthService.loginWithGoogle();
-      if (!mounted) return;
-      if (launched) {
-        Navigator.push(
+      final launched = await AuthRepository.signInWithGoogle();
+      if (launched && mounted) {
+        SnackbarHelper.showSuccess(
           context,
-          MaterialPageRoute(builder: (context) => const GoogleSignInScreen()),
+          'Đã mở trình duyệt. Hoàn tất Google rồi quay lại Fruitopia.',
         );
-      } else {
-        SnackbarHelper.showError(context, 'Không thể mở đăng nhập Google.');
+      } else if (mounted) {
+        SnackbarHelper.showError(
+          context,
+          'Không thể mở luồng đăng nhập Google.',
+        );
       }
     } catch (e) {
       if (mounted) {

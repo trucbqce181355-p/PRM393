@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/supabase.env.json
 
 # Symbolication related
 app.*.symbols
@@ -47,13 +48,17 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Local authentication configuration and generated dependencies
+# Local Mock / Seed Data Scripts
+seed_mock_data.dart
+init_db.dart
+
+# Supabase Local Env
 supabase.env.json
-auth_backend/.env
 auth_backend/node_modules/
+auth_backend/.env
 auth_backend/*.local.json
+backend/node_modules/
 backend/.env
 backend/.env.*
 !backend/.env.example
-backend/node_modules/
 backend/serviceAccountKey.json

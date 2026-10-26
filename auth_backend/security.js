@@ -65,4 +65,5 @@ function publicUser(user) {
     sessionProvider: user.sessionProvider === 'google' ? 'google' : 'password',
   };
 }
-module.exports = { AuthError, digest, secret, equal, normalizeEmail, validateProfile, validatePassword, hashPassword, verifyPassword, publicUser };
+module.exports = { AuthError, digest, secret, equal, normalizeEmail, validateProfile,
+  validatePassword, hashPassword, verifyPassword, publicUser };
