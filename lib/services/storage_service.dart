@@ -28,28 +28,15 @@ class StorageService {
   // ==========================================
   // --- ORDERS ---
   // ==========================================
-  static List<Map<String, dynamic>> getOrders() {
+  static List<Map<String, dynamic>> getOrders({String? userEmail}) {
     final String? data = _prefs?.getString('orders');
-    if (data != null) {
-      final List<dynamic> decoded = jsonDecode(data);
-      return decoded.map((e) => e as Map<String, dynamic>).toList();
+    if (data == null) return [];
+    final List<dynamic> decoded = jsonDecode(data);
+    var list = decoded.map((e) => e as Map<String, dynamic>).where((o) => o['id'] != '109283' && o['id'] != '109280').toList();
+    if (userEmail != null && userEmail.isNotEmpty) {
+      list = list.where((o) => (o['customerEmail'] ?? o['email'] ?? '').toString().toLowerCase() == userEmail.toLowerCase()).toList();
     }
-    return [
-      {
-        'id': '109283',
-        'status': 'Đang xử lý',
-        'items': 'Táo Fuji hữu cơ (x2)',
-        'date': 'Hôm nay, 10:30 AM',
-        'total': '9.98',
-      },
-      {
-        'id': '109280',
-        'status': 'Đang giao',
-        'items': 'Chuối cao cấp (x1) + Nho mẫu đơn (x1)',
-        'date': 'Hôm qua, 14:20 PM',
-        'total': '14.48',
-      }
-    ];
+    return list;
   }
 
   static Future<void> saveOrders(List<Map<String, dynamic>> orders) async {
@@ -68,14 +55,19 @@ class StorageService {
   // ==========================================
   static List<Map<String, dynamic>> getAddresses() {
     final String? data = _prefs?.getString('addresses');
-    if (data != null) {
-      final List<dynamic> decoded = jsonDecode(data);
-      return decoded.map((e) => e as Map<String, dynamic>).toList();
+    if (data == null) return [];
+    final List<dynamic> decoded = jsonDecode(data);
+    return decoded.map((e) => e as Map<String, dynamic>).where((a) => (a['address'] ?? '') != 'Số 1, Đại Cồ Việt, Hà Nội').toList();
+  }
+
+  static Future<void> setDefaultAddress(int index) async {
+    final addresses = getAddresses();
+    if (index >= 0 && index < addresses.length) {
+      for (int i = 0; i < addresses.length; i++) {
+        addresses[i]['isDefault'] = (i == index);
+      }
+      await saveAddresses(addresses);
     }
-    return [
-      {'title': 'Nhà riêng', 'address': 'Số 1, Đại Cồ Việt, Hà Nội', 'phone': '0987654321', 'isDefault': true},
-      {'title': 'Công ty', 'address': 'Tòa nhà FPT, Cầu Giấy, Hà Nội', 'phone': '0912345678', 'isDefault': false},
-    ];
   }
 
   static Future<void> saveAddresses(List<Map<String, dynamic>> addresses) async {
