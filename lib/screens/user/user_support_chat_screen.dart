@@ -55,7 +55,19 @@ class _UserSupportChatScreenState extends State<UserSupportChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hỗ trợ trực tuyến'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Hỗ trợ trực tuyến', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+                const Text('Đang trực tuyến (Phản hồi < 2 phút)', style: TextStyle(fontSize: 11, color: Colors.white70)),
+              ],
+            ),
+          ],
+        ),
       ),
       body: Column(
         children: [
