@@ -1,11 +1,12 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC07: Đăng nhập email/Google và xác nhận liên kết tài khoản cùng email.
+// UC05–UC08: Đăng nhập, liên kết Google và điều hướng hoàn tất hồ sơ lần đầu.
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
 import '../../services/google_auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'link_google_screen.dart';
+import 'google_profile_setup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.service, this.googleService});
@@ -102,7 +103,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final session = _result;
+    if (session != null && session.customer.sessionProvider == 'google' && !session.customer.profileCompleted) {
+      return GoogleProfileSetupScreen(session: session, service: _service,
+        onCompleted: (result) => setState(() => _result = result),
+        onRestart: () => setState(() { _result = null; _error = null; _info = null; }));
+    }
+    return Scaffold(
     appBar: AppBar(title: const Text('Đăng nhập')),
     body: SafeArea(child: Center(child: SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -155,4 +163,5 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     ))),
   );
+  }
 }
