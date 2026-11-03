@@ -1,22 +1,22 @@
-# Flow 09 · Shipper Delivery
+# traicay
 
-This is a standalone Flutter project for the Dev 5 shipper flow. Its app opens directly to the MongoDB delivery-order list.
+A new Flutter project.
 
-## Run
+## Getting Started
 
-```powershell
-flutter pub get
-flutter run -d windows
-```
+This project is a starting point for a Flutter application.
 
-To run on Android, connect an emulator/device and use `flutter run`. Start MongoDB first. The default connection is `127.0.0.1:27017` on Windows and `10.0.2.2:27017` on the Android emulator. Set a different host with:
+A few resources to get you started if this is your first Flutter project:
 
-```powershell
-flutter run --dart-define=MONGODB_HOST=<computer-LAN-IP>
-```
+- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
 
-The sample order setup tool is available at `tool/setup_dev5_database.dart`:
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
 
-```powershell
-dart run tool/setup_dev5_database.dart
-```
+## Apps in this branch
+
+- Fruitopia shop: run with lutter run (entry point: lib/main.dart).
+- Shipper delivery: run with lutter run -t lib/shipper_main.dart (entry point: lib/shipper_main.dart).

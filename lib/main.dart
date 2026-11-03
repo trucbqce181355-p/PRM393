@@ -1,31 +1,34 @@
 import 'package:flutter/material.dart';
+import 'screens/user/user_home_screen.dart';
+import 'services/storage_service.dart';
 
-import 'flow_09_shipper_delivery.dart';
-import 'mongodb_service.dart';
+import 'services/data_service.dart';
+import 'services/mongodb_service.dart';
+import 'services/auth_service.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await MongoDBService.connect();
-  } catch (error) {
-    debugPrint('MongoDB is unavailable at startup: $error');
-  }
-  runApp(const ShipperDeliveryApp());
+  await StorageService.init();
+  await AuthService.init();
+  await MongoDBService.connect(); // Initialize MongoDB trước để lấy dữ liệu
+  await DataService.init(); // Initialize Hive database và load dữ liệu
+  runApp(const MyApp());
 }
 
-class ShipperDeliveryApp extends StatelessWidget {
-  const ShipperDeliveryApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flow 9 · Giao hàng Shipper',
+      title: 'Fruit App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
+        fontFamily: 'Inter',
       ),
-      home: const ShipperOrdersScreen(),
+      home: const UserHomeScreen(),
     );
   }
 }
