@@ -1,8 +1,8 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01: Điểm khởi chạy giao diện yêu cầu/gửi lại OTP xác minh email.
+// UC05: Mở đăng nhập email/mật khẩu và các liên kết đăng ký/quên mật khẩu.
 import 'package:flutter/material.dart';
 
-import 'screens/auth/register_screen.dart';
+import 'screens/auth/login_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -10,9 +10,9 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Fruitopia - Email OTP',
+    title: 'Fruitopia',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(colorSchemeSeed: Colors.green, useMaterial3: true),
-    home: const RegisterScreen(),
+    home: const LoginScreen(),
   );
 }
