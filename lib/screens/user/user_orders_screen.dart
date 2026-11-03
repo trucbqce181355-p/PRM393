@@ -47,6 +47,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
         'status': o.toJson()['status'] ?? 'Đang xử lý',
         'items': o.itemsSummary.isNotEmpty ? o.itemsSummary : 'Sản phẩm trái cây',
         'date': '${o.createdAt.day.toString().padLeft(2, '0')}/${o.createdAt.month.toString().padLeft(2, '0')}/${o.createdAt.year} ${o.createdAt.hour.toString().padLeft(2, '0')}:${o.createdAt.minute.toString().padLeft(2, '0')}',
+        'createdAt': o.createdAt.toIso8601String(),
         'total': FormatHelper.formatPrice(o.totalAmount),
         'totalAmount': o.totalAmount,
       });
@@ -60,12 +61,37 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
       }
     }
 
+    loaded.sort((left, right) {
+      final leftDate = _orderDate(left);
+      final rightDate = _orderDate(right);
+      if (leftDate == null) return rightDate == null ? 0 : 1;
+      if (rightDate == null) return -1;
+      return rightDate.compareTo(leftDate);
+    });
+
     if (mounted) {
       setState(() {
         _allOrders = loaded;
         _isLoading = false;
       });
     }
+  }
+
+  DateTime? _orderDate(Map<String, dynamic> order) {
+    final createdAt = DateTime.tryParse(order['createdAt']?.toString() ?? '');
+    if (createdAt != null) return createdAt;
+
+    final displayDate = order['date']?.toString() ?? '';
+    final match = RegExp(r'^(\d{2})/(\d{2})/(\d{4})(?:\s+(\d{2}):(\d{2}))?$').firstMatch(displayDate);
+    if (match == null) return null;
+
+    return DateTime(
+      int.parse(match[3]!),
+      int.parse(match[2]!),
+      int.parse(match[1]!),
+      int.tryParse(match[4] ?? '0') ?? 0,
+      int.tryParse(match[5] ?? '0') ?? 0,
+    );
   }
 
   @override
