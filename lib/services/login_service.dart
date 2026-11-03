@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC13: Quản lý phiên, hồ sơ và gọi API địa chỉ bằng token đã xác thực.
+// UC05–UC14: Quản lý phiên, hồ sơ, địa chỉ và lựa chọn địa chỉ mặc định.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -247,11 +247,15 @@ class LoginService {
     await _addressRequest(session, 'DELETE', id: id);
   }
 
+  Future<void> selectDefaultAddress(LoginResult session, String id) async {
+    await _addressRequest(session, 'PATCH', id: id, selectDefault: true, fields: const {});
+  }
+
   Future<Map<String, dynamic>> _addressRequest(LoginResult session, String method,
-    {String? id, Map<String, String>? fields}) async {
+    {String? id, Map<String, String>? fields, bool selectDefault = false}) async {
     bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
     if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
-    final uri = Uri.parse('$_baseUrl/addresses${id == null ? '' : '/${Uri.encodeComponent(id)}'}');
+    final uri = Uri.parse('$_baseUrl/addresses${id == null ? '' : '/${Uri.encodeComponent(id)}'}${selectDefault ? '/default' : ''}');
     final headers = {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'};
     try {
       final Future<http.Response> request;
