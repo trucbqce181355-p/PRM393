@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC11: Xác thực tài khoản, quản lý phiên và xem hồ sơ/hạng thành viên.
+// UC01–UC13: Xác thực, hồ sơ và quản lý địa chỉ của tài khoản.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -23,6 +23,8 @@ const { SessionService } = require('./session-service');
 const { MongoSessionStore } = require('./session-store');
 const { ProfileService } = require('./profile-service');
 const { MongoProfileStore } = require('./profile-store');
+const { AddressService } = require('./address-service');
+const { MongoAddressStore } = require('./address-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
@@ -32,7 +34,8 @@ function createApp(service,
   google = new GoogleAuthService({ store: new MongoGoogleAuthStore(service.store.db), verifyGoogle: verifyGoogleToken, now: service.now }),
   googleProfile = new GoogleProfileService({ store: new MongoGoogleProfileStore(service.store.db), now: service.now }),
   sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now }),
-  profile = new ProfileService({ sessions, store: new MongoProfileStore(service.store.db) })) {
+  profile = new ProfileService({ sessions, store: new MongoProfileStore(service.store.db) }),
+  addresses = new AddressService({ sessions, store: new MongoAddressStore(service.store.db) })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -79,6 +82,22 @@ function createApp(service,
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     profile.view(token).then(data => res.json({ success: true, data })).catch(next);
   });
+  app.get('/api/auth/addresses', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    addresses.list(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/addresses', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    addresses.create(token, req.body).then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
+  app.patch('/api/auth/addresses/:id', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    addresses.update(token, req.params.id, req.body).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.delete('/api/auth/addresses/:id', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    addresses.delete(token, req.params.id).then(data => res.json({ success: true, data })).catch(next);
+  });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = error.status ?? 503;
@@ -103,6 +122,7 @@ async function main() {
   await loginStore.init();
   const googleStore = new MongoGoogleAuthStore(store.db);
   await googleStore.init();
+  await new MongoAddressStore(store.db).init();
   const transport = nodemailer.createTransport({ service: 'gmail',
     auth: { user: process.env.SMTP_USERNAME, pass: process.env.SMTP_PASSWORD },
     connectionTimeout: 10000, socketTimeout: 15000 });

@@ -1,9 +1,10 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11: Xem thông tin cá nhân, tổng chi tiêu và hạng thành viên từ backend.
+// UC11 và UC13: Xem hồ sơ, hạng thành viên và danh sách địa chỉ giao hàng.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
 import '../../services/login_service.dart';
+import 'user_addresses_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -19,6 +20,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
   String? _error;
   bool _loading = false;
   bool _sessionInvalid = false;
+  bool _openingAddresses = false;
 
   @override
   void initState() {
@@ -35,6 +37,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && !_loading && !_sessionInvalid) unawaited(_load());
+  }
+
+  Future<void> _openAddresses() async {
+    if (_loading || _openingAddresses || _sessionInvalid) return;
+    setState(() => _openingAddresses = true);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+      UserAddressesScreen(session: widget.session, service: widget.service)));
+    if (!mounted) return;
+    setState(() => _openingAddresses = false);
+    if (_sessionInvalid) Navigator.pop(context);
   }
 
   Future<void> _load() async {
@@ -88,6 +100,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
               _field('Số điện thoại', profile.phone),
               _field('Loại tài khoản', profile.role == 'admin' ? 'Quản trị viên' : 'Khách hàng'),
             ])),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(onPressed: _openingAddresses ? null : _openAddresses,
+              icon: const Icon(Icons.location_on_outlined), label: const Text('Địa chỉ giao hàng')),
             if (profile.role != 'admin') ...[
               const SizedBox(height: 16),
               Card(child: Column(children: [
