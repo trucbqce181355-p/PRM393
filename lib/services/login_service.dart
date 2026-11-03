@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC16: Quản lý phiên, hồ sơ, địa chỉ, hội thoại và yêu cầu hỗ trợ.
+// UC05–UC17: Quản lý phiên và gọi API hồ sơ/hỗ trợ/danh sách khách hàng theo quyền.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -9,6 +9,7 @@ import '../models/customer_profile.dart';
 import '../models/delivery_address.dart';
 import '../models/support_message.dart';
 import '../models/support_request.dart';
+import '../models/customer_summary.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -355,6 +356,31 @@ class LoginService {
       return Map<String, dynamic>.from(result['data'] as Map);
     } on LoginException { rethrow; }
     catch (_) { throw const LoginException('Không thể kết nối dịch vụ hỗ trợ. Vui lòng thử lại.', code: 'support_connection_error'); }
+  }
+
+  Future<List<CustomerSummary>> fetchCustomers(LoginResult session) async {
+    bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
+    if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
+    if (_currentSession!.customer.role != 'admin') {
+      throw const LoginException('Chỉ quản trị viên được xem danh sách khách hàng.', code: 'admin_required');
+    }
+    try {
+      final response = await _client.get(Uri.parse('$_baseUrl/customers'),
+        headers: {'Authorization': 'Bearer ${session.token}'}).timeout(const Duration(seconds: 25));
+      if (!active()) throw const LoginException('Phiên đã hết hạn hoặc thay đổi.', code: 'session_expired');
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || (response.statusCode == 403 && result['code'] == 'account_unavailable')) {
+        await invalidateSession(session.token, message: result['message'] as String?);
+        throw LoginException(result['message'] as String? ?? 'Vui lòng đăng nhập lại.', code: 'session_expired');
+      }
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Không thể tải danh sách khách hàng.',
+          code: result['code'] as String? ?? 'customers_error');
+      }
+      return (result['data']['customers'] as List).map((item) =>
+        CustomerSummary.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+    } on LoginException { rethrow; }
+    catch (_) { throw const LoginException('Không thể kết nối để tải khách hàng. Vui lòng thử lại.', code: 'customers_connection_error'); }
   }
 
   Future<void> logout({Future<void> Function()? clearProviderSession}) async {

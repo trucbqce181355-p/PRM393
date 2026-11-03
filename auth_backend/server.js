@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC16: Xác thực, hồ sơ, địa chỉ, hội thoại và yêu cầu hỗ trợ.
+// UC01–UC17: Xác thực, hồ sơ, hỗ trợ và xem danh sách khách hàng theo quyền.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -27,6 +27,8 @@ const { AddressService } = require('./address-service');
 const { MongoAddressStore } = require('./address-store');
 const { SupportService } = require('./support-service');
 const { MongoSupportStore } = require('./support-store');
+const { CustomerService } = require('./customer-service');
+const { MongoCustomerStore } = require('./customer-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
@@ -38,7 +40,8 @@ function createApp(service,
   sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now }),
   profile = new ProfileService({ sessions, store: new MongoProfileStore(service.store.db) }),
   addresses = new AddressService({ sessions, store: new MongoAddressStore(service.store.db) }),
-  support = new SupportService({ sessions, store: new MongoSupportStore(service.store.db) })) {
+  support = new SupportService({ sessions, store: new MongoSupportStore(service.store.db) }),
+  customers = new CustomerService({ sessions, store: new MongoCustomerStore(service.store.db) })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '20kb' }));
@@ -128,6 +131,10 @@ function createApp(service,
   app.patch('/api/auth/support/requests/:id', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     support.changeRequest(token, req.params.id, req.body).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.get('/api/auth/customers', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    customers.list(token).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
