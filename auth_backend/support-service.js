@@ -1,11 +1,63 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC15: Gửi tin nhắn/yêu cầu hỗ trợ và xem phản hồi theo quyền của phiên đăng nhập.
+// UC15–UC16: Hội thoại hỗ trợ và tạo/xem/sửa/hủy yêu cầu chưa xử lý.
 const { randomUUID } = require('node:crypto');
 class SupportError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 class SupportService {
   constructor({ sessions, store }) { this.sessions = sessions; this.store = store; }
+  async requestCustomer(token) {
+    const { customer } = await this.sessions.restore(token);
+    if (customer.role === 'admin') throw new SupportError(403, 'request_denied', 'Chức năng này dành cho tài khoản khách hàng.');
+    return customer;
+  }
+  requestFields(body, allowed) {
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        Object.keys(body).some(key => !allowed.includes(key)) ||
+        typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 300 ||
+        typeof body.description !== 'string' || !body.description.trim() || body.description.length > 4000) {
+      throw new SupportError(400, 'invalid_request', 'Lý do từ 1–300 ký tự; nội dung từ 1–4.000 ký tự.');
+    }
+    return { reason: body.reason.trim(), description: body.description.trim() };
+  }
+  async requests(token) {
+    const customer = await this.requestCustomer(token);
+    const requests = await this.store.requests(customer.email);
+    await this.requestCustomer(token);
+    return { requests };
+  }
+  async createRequest(token, body) {
+    const customer = await this.requestCustomer(token);
+    const fields = this.requestFields(body, ['reason', 'description', 'orderId']);
+    const orderId = body.orderId == null ? '' : body.orderId;
+    if (typeof orderId !== 'string' || orderId.length > 100) {
+      throw new SupportError(400, 'invalid_order', 'Mã đơn hàng không hợp lệ.');
+    }
+    if (orderId.trim() && !await this.store.ownsOrder(customer.email, orderId.trim())) {
+      throw new SupportError(403, 'order_denied', 'Đơn hàng không thuộc tài khoản của bạn.');
+    }
+    const request = { id: `rr_${randomUUID()}`, customerEmail: customer.email, customerName: customer.name,
+      orderId: orderId.trim(), ...fields, status: 'pending', adminReply: null, createdAt: new Date().toISOString() };
+    await this.store.createRequest(request);
+    return { request };
+  }
+  async changeRequest(token, id, body) {
+    const customer = await this.requestCustomer(token);
+    if (typeof id !== 'string' || !/^rr_[A-Za-z0-9_-]{1,80}$/.test(id)) {
+      throw new SupportError(404, 'request_not_found', 'Không tìm thấy yêu cầu.');
+    }
+    let fields;
+    if (body?.action === 'edit') {
+      fields = this.requestFields(body, ['action', 'reason', 'description']);
+    } else if (body?.action === 'cancel' && Object.keys(body).length === 1) {
+      fields = { status: 'cancelled' };
+    } else {
+      throw new SupportError(400, 'invalid_request_action', 'Thao tác với yêu cầu không hợp lệ.');
+    }
+    const request = await this.store.changePendingRequest(customer.email, id, fields);
+    if (!request) throw new SupportError(409, 'request_not_pending', 'Yêu cầu đã được xử lý, đã hủy hoặc không thuộc tài khoản. Vui lòng tải lại.');
+    return { request };
+  }
   async conversation(user, requested) {
     if (user.role !== 'admin') {
       if (requested != null && requested !== user.email) {

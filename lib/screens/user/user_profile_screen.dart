@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11–UC15: Hồ sơ, địa chỉ và mở hội thoại hỗ trợ của tài khoản.
+// UC11–UC16: Hồ sơ, địa chỉ, hội thoại và mở danh sách yêu cầu hỗ trợ.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
@@ -7,6 +7,7 @@ import '../../services/login_service.dart';
 import 'user_edit_profile_screen.dart';
 import 'user_addresses_screen.dart';
 import 'user_support_chat_screen.dart';
+import 'user_requests_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -79,6 +80,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
     if (_sessionInvalid) Navigator.pop(context);
   }
 
+  Future<void> _openRequests() async {
+    if (_loading || _editing || _sessionInvalid) return;
+    setState(() => _editing = true);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+      UserRequestsScreen(session: widget.session, service: widget.service)));
+    if (!mounted) return;
+    setState(() => _editing = false);
+    if (_sessionInvalid) Navigator.pop(context);
+  }
+
   Future<void> _load() async {
     if (_loading || _editing || _sessionInvalid) return;
     setState(() { _loading = true; _profile = null; _error = null; });
@@ -139,6 +150,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
               icon: const Icon(Icons.support_agent), label: Text(profile.role == 'admin'
                 ? 'Hội thoại hỗ trợ khách hàng' : 'Gửi yêu cầu/tin nhắn và xem phản hồi')),
             if (profile.role != 'admin') ...[
+              OutlinedButton.icon(onPressed: _editing ? null : _openRequests,
+                icon: const Icon(Icons.assignment_outlined), label: const Text('Tạo, xem và quản lý yêu cầu hỗ trợ')),
               const SizedBox(height: 16),
               Card(child: Column(children: [
                 ListTile(leading: const Icon(Icons.workspace_premium, color: Colors.orange),

@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC15: Quản lý phiên, hồ sơ, địa chỉ và hội thoại hỗ trợ.
+// UC05–UC16: Quản lý phiên, hồ sơ, địa chỉ, hội thoại và yêu cầu hỗ trợ.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -8,6 +8,7 @@ import 'session_storage.dart';
 import '../models/customer_profile.dart';
 import '../models/delivery_address.dart';
 import '../models/support_message.dart';
+import '../models/support_request.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -301,22 +302,46 @@ class LoginService {
   }
 
   Future<SupportSnapshot> fetchSupport(LoginResult session, {String? conversationId}) async =>
-    SupportSnapshot.fromJson(await _supportRequest(session, conversationId: conversationId));
+    SupportSnapshot.fromJson(await _supportRequest(session, 'GET', 'support',
+      query: conversationId == null ? null : {'conversationId': conversationId}));
 
   Future<void> sendSupportMessage(LoginResult session, String message, {String? conversationId}) async {
-    await _supportRequest(session, message: message, conversationId: conversationId);
+    await _supportRequest(session, 'POST', 'support/messages', body: {'message': message,
+      if (conversationId != null) 'conversationId': conversationId});
   }
 
-  Future<Map<String, dynamic>> _supportRequest(LoginResult session, {String? message, String? conversationId}) async {
+  Future<List<SupportRequest>> fetchRequests(LoginResult session) async {
+    final data = await _supportRequest(session, 'GET', 'support/requests');
+    return (data['requests'] as List).map((item) => SupportRequest.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+  }
+
+  Future<void> saveRequest(LoginResult session, {String? id, required String reason,
+    required String description, String orderId = ''}) async {
+    await _supportRequest(session, id == null ? 'POST' : 'PATCH',
+      'support/requests${id == null ? '' : '/${Uri.encodeComponent(id)}'}', body: {
+        'reason': reason.trim(), 'description': description.trim(),
+        if (id == null) 'orderId': orderId.trim(), if (id != null) 'action': 'edit',
+      });
+  }
+
+  Future<void> cancelRequest(LoginResult session, String id) async {
+    await _supportRequest(session, 'PATCH', 'support/requests/${Uri.encodeComponent(id)}', body: {'action': 'cancel'});
+  }
+
+  Future<Map<String, dynamic>> _supportRequest(LoginResult session, String method, String path,
+    {Map<String, dynamic>? body, Map<String, String>? query}) async {
     bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
     if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
     final headers = {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'};
     try {
-      final uri = Uri.parse('$_baseUrl/support${message == null ? '' : '/messages'}');
-      final response = await (message == null
-        ? _client.get(conversationId == null ? uri : uri.replace(queryParameters: {'conversationId': conversationId}), headers: headers)
-        : _client.post(uri, headers: headers, body: jsonEncode({'message': message,
-          if (conversationId != null) 'conversationId': conversationId}))).timeout(const Duration(seconds: 25));
+      final uri = Uri.parse('$_baseUrl/$path').replace(queryParameters: query);
+      final Future<http.Response> request;
+      switch (method) {
+        case 'POST': request = _client.post(uri, headers: headers, body: jsonEncode(body)); break;
+        case 'PATCH': request = _client.patch(uri, headers: headers, body: jsonEncode(body)); break;
+        default: request = _client.get(uri, headers: headers);
+      }
+      final response = await request.timeout(const Duration(seconds: 25));
       if (!active()) throw const LoginException('Phiên đã hết hạn hoặc thay đổi.', code: 'session_expired');
       final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (response.statusCode == 401 || (response.statusCode == 403 && result['code'] == 'account_unavailable')) {
