@@ -12,6 +12,7 @@ import '../../services/data_service.dart';
 import 'product_detail_screen.dart';
 import '../../utils/format_helper.dart';
 import 'user_vouchers_screen.dart';
+import 'user_notifications_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -338,7 +339,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const UserNotificationsScreen(),
+                  ),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.redAccent),
