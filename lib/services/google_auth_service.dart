@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC06: OAuth Google qua Supabase, sau đó đổi token lấy phiên của ứng dụng.
+// UC06–UC07: OAuth Google và xác nhận liên kết tài khoản email cùng địa chỉ.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -20,6 +20,13 @@ class GoogleAuthService {
   StreamSubscription<AuthState>? _subscription;
   Completer<LoginResult>? _pending;
   bool _disposed = false;
+  String? _linkAccessToken;
+  String? _linkIdentityId;
+  String? _linkEmail;
+  int _linkGeneration = 0;
+  bool _linking = false;
+  bool get requiresAccountLink => _linkAccessToken != null && _linkIdentityId != null;
+  String? get pendingLinkEmail => _linkEmail;
   static bool _ready = false;
   static const _url = String.fromEnvironment('SUPABASE_URL');
   static const _publishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
@@ -39,10 +46,11 @@ class GoogleAuthService {
     }
   }
 
-  Future<Map<String, dynamic>> _exchange(String accessToken) async {
+  Future<Map<String, dynamic>> _exchange(String accessToken, {String? password}) async {
     try {
       final response = await _client.post(Uri.parse('$_baseUrl/google'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $accessToken'}, body: '{}')
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $accessToken'},
+        body: jsonEncode({if (password != null) 'password': password}))
         .timeout(const Duration(seconds: 25));
       final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (response.statusCode != 200 || result['success'] != true) {
@@ -68,7 +76,8 @@ class GoogleAuthService {
   Future<LoginResult> signIn() async {
     if (_disposed) throw const LoginException('Màn hình đăng nhập đã đóng.', code: 'google_cancelled');
     if (!_ready) throw const LoginException('Đăng nhập Google chưa khả dụng. Vui lòng dùng email/mật khẩu hoặc thử lại sau.', code: 'google_not_configured');
-    if (_pending != null) throw const LoginException('Đăng nhập Google đang được xử lý.', code: 'google_in_progress');
+    if (_pending != null || _linking) throw const LoginException('Đăng nhập Google đang được xử lý.', code: 'google_in_progress');
+    clearPendingLink();
     final operation = Completer<LoginResult>();
     _pending = operation;
     bool exchanging = false;
@@ -82,11 +91,21 @@ class GoogleAuthService {
       if (_disposed || !identical(_pending, operation) || operation.isCompleted || exchanging ||
           event.event != AuthChangeEvent.signedIn || event.session == null) return;
       exchanging = true;
-      unawaited(_exchange(event.session!.accessToken).then<void>((data) {
+      final providerSession = event.session!;
+      unawaited(_exchange(providerSession.accessToken).then<void>((data) {
         if (_disposed || !identical(_pending, operation) || operation.isCompleted) return;
         try { operation.complete(_loginService.acceptSession(data)); }
         catch (error, stack) { fail(error, stack); }
-      }, onError: fail));
+      }, onError: (Object error, StackTrace stack) {
+        if (!_disposed && identical(_pending, operation) && !operation.isCompleted &&
+            error is LoginException && error.code == 'account_link_required') {
+          _linkAccessToken = providerSession.accessToken;
+          _linkIdentityId = providerSession.user.id;
+          _linkEmail = providerSession.user.email;
+          _linkGeneration++;
+        }
+        fail(error, stack);
+      }));
     }, onError: fail);
     final waiting = operation.future.timeout(const Duration(minutes: 3), onTimeout: () {
       throw const LoginException('Đăng nhập Google đã hết thời gian chờ. Vui lòng thử lại.', code: 'google_timeout');
@@ -101,7 +120,50 @@ class GoogleAuthService {
     }
   }
 
+  Future<LoginResult> linkExistingAccount(String password) async {
+    if (_disposed || !requiresAccountLink) {
+      throw const LoginException('Vui lòng đăng nhập Google lại để liên kết.', code: 'google_session_changed');
+    }
+    if (_pending != null || _linking) throw const LoginException('Liên kết đang được xử lý.', code: 'google_in_progress');
+    final token = _linkAccessToken!;
+    final identityId = _linkIdentityId;
+    final generation = _linkGeneration;
+    final providerSession = Supabase.instance.client.auth.currentSession;
+    if (providerSession == null || providerSession.user.id != identityId || providerSession.accessToken != token) {
+      clearPendingLink();
+      throw const LoginException('Phiên Google đã thay đổi. Vui lòng đăng nhập lại.', code: 'google_session_changed');
+    }
+    _linking = true;
+    try {
+      final data = await _exchange(token, password: password);
+      if (_disposed || generation != _linkGeneration || _linkAccessToken != token) {
+        throw const LoginException('Liên kết Google đã bị hủy.', code: 'google_cancelled');
+      }
+      final current = Supabase.instance.client.auth.currentSession;
+      if (current == null || current.user.id != identityId || current.accessToken != token) {
+        clearPendingLink();
+        throw const LoginException('Phiên Google đã thay đổi. Vui lòng đăng nhập lại.', code: 'google_session_changed');
+      }
+      final result = _loginService.acceptSession(data);
+      clearPendingLink();
+      return result;
+    } on LoginException catch (error) {
+      if (['invalid_google_token', 'account_locked', 'account_changed', 'google_already_linked', 'google_link_denied'].contains(error.code)) {
+        clearPendingLink();
+      }
+      rethrow;
+    } finally {
+      _linking = false;
+    }
+  }
+
+  void clearPendingLink() {
+    _linkGeneration++;
+    _linkAccessToken = null; _linkIdentityId = null; _linkEmail = null;
+  }
+
   void cancel() {
+    clearPendingLink();
     final operation = _pending;
     if (operation != null && !operation.isCompleted) {
       operation.completeError(const LoginException('Đã hủy đăng nhập Google.', code: 'google_cancelled'));

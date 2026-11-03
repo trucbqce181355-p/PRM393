@@ -1,10 +1,11 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC06: Đăng nhập email/mật khẩu hoặc Google, hiển thị lỗi và kết quả.
+// UC05–UC07: Đăng nhập email/Google và xác nhận liên kết tài khoản cùng email.
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
 import '../../services/google_auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'link_google_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.service, this.googleService});
@@ -64,7 +65,21 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _result = result; _info = null; });
       _password.clear();
     } on LoginException catch (error) {
-      if (mounted) setState(() { _error = error.message; _info = null; });
+      if (!mounted) return;
+      if (error.code == 'account_link_required' && _googleService.requiresAccountLink) {
+        final linked = await Navigator.push<LoginResult>(context,
+          MaterialPageRoute(builder: (_) => LinkGoogleScreen(service: _googleService)));
+        _googleService.clearPendingLink();
+        if (!mounted) return;
+        if (linked != null) {
+          _password.clear();
+          setState(() { _result = linked; _error = null; _info = null; });
+        } else {
+          setState(() { _error = null; _info = 'Đã hủy liên kết Google.'; });
+        }
+      } else {
+        setState(() { _error = error.message; _info = null; });
+      }
     } finally {
       if (mounted) setState(() => _googleBusy = false);
     }
@@ -96,6 +111,8 @@ class _LoginScreenState extends State<LoginScreen> {
           const Icon(Icons.check_circle, color: Colors.green, size: 56),
           const SizedBox(height: 16),
           const Text('Đăng nhập thành công.'),
+          if (_result!.linkedExistingAccount)
+            const Text('Google đã được liên kết với tài khoản email hiện có.'),
           Text('Xin chào ${_result!.customer.name.isNotEmpty ? _result!.customer.name : _result!.customer.email}!'),
           Text(_result!.customer.email),
           Text(_result!.customer.role == 'admin' ? 'Tài khoản quản trị viên' : 'Tài khoản khách hàng'),

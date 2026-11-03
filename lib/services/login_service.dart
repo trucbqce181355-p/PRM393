@@ -23,10 +23,12 @@ class LoginCustomer {
 }
 
 class LoginResult {
-  const LoginResult({required this.token, required this.expiresAt, required this.customer});
+  const LoginResult({required this.token, required this.expiresAt, required this.customer,
+    this.linkedExistingAccount = false});
   final String token;
   final DateTime expiresAt;
   final LoginCustomer customer;
+  final bool linkedExistingAccount;
 }
 
 class LoginService {
@@ -45,6 +47,7 @@ class LoginService {
     final expiresAt = DateTime.parse(data['expiresAt'] as String);
     if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) throw const FormatException('Invalid login response');
     final session = LoginResult(token: token, expiresAt: expiresAt,
+      linkedExistingAccount: data['linkedExistingAccount'] == true,
       customer: LoginCustomer(id: customer['id'] as String, name: customer['name'] as String,
         email: customer['email'] as String, role: customer['role'] as String,
         profileCompleted: customer['profileCompleted'] as bool? ?? true,

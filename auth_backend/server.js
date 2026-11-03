@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC06: OTP, đăng ký, quên mật khẩu và đăng nhập email/Google.
+// UC01–UC07: OTP, đăng ký, đăng nhập và liên kết Google cùng email.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -50,7 +50,7 @@ function createApp(service,
   });
   app.post('/api/auth/google', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
-    google.login(token, req.ip)
+    google.login(token, req.ip, req.body?.password)
       .then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
