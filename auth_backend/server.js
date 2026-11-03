@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC05: OTP, đăng ký, quên mật khẩu và đăng nhập email/mật khẩu.
+// UC01–UC06: OTP, đăng ký, quên mật khẩu và đăng nhập email/Google.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -14,12 +14,16 @@ const { PasswordResetService } = require('./password-reset-service');
 const { MongoPasswordResetStore } = require('./password-reset-store');
 const { LoginService } = require('./login-service');
 const { MongoLoginStore } = require('./login-store');
+const { GoogleAuthService } = require('./google-auth-service');
+const { MongoGoogleAuthStore } = require('./google-auth-store');
+const { verifyGoogleToken } = require('./google-token-verifier');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
   registration = new RegistrationService({ store: new MongoRegistrationStore(service.store.db), now: service.now }),
   passwordReset = new PasswordResetService({ store: new MongoPasswordResetStore(service.store.db), now: service.now }),
-  login = new LoginService({ store: new MongoLoginStore(service.store.db), now: service.now })) {
+  login = new LoginService({ store: new MongoLoginStore(service.store.db), now: service.now }),
+  google = new GoogleAuthService({ store: new MongoGoogleAuthStore(service.store.db), verifyGoogle: verifyGoogleToken, now: service.now })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -44,6 +48,11 @@ function createApp(service,
     login.login(req.body, req.ip)
       .then(data => res.json({ success: true, data })).catch(next);
   });
+  app.post('/api/auth/google', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    google.login(token, req.ip)
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = error.status ?? 503;
@@ -66,6 +75,8 @@ async function main() {
   await registrationStore.init();
   const loginStore = new MongoLoginStore(store.db);
   await loginStore.init();
+  const googleStore = new MongoGoogleAuthStore(store.db);
+  await googleStore.init();
   const transport = nodemailer.createTransport({ service: 'gmail',
     auth: { user: process.env.SMTP_USERNAME, pass: process.env.SMTP_PASSWORD },
     connectionTimeout: 10000, socketTimeout: 15000 });

@@ -1,13 +1,15 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05: Nhập email/mật khẩu, hiển thị lỗi hoặc kết quả đăng nhập.
+// UC05–UC06: Đăng nhập email/mật khẩu hoặc Google, hiển thị lỗi và kết quả.
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
+import '../../services/google_auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.service});
+  const LoginScreen({super.key, this.service, this.googleService});
   final LoginService? service;
+  final GoogleAuthService? googleService;
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -17,17 +19,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   late final LoginService _service;
+  late final GoogleAuthService _googleService;
   bool _busy = false;
+  bool _googleBusy = false;
+  bool get _isBusy => _busy || _googleBusy;
   bool _hidePassword = true;
   String? _error;
   String? _info;
   LoginResult? _result;
 
   @override
-  void initState() { super.initState(); _service = widget.service ?? LoginService(); }
+  void initState() {
+    super.initState();
+    _service = widget.service ?? LoginService();
+    _googleService = widget.googleService ?? GoogleAuthService(loginService: _service);
+  }
 
   Future<void> _login() async {
-    if (_busy || !_formKey.currentState!.validate()) return;
+    if (_isBusy || !_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     setState(() { _busy = true; _error = null; _info = null; });
     try {
@@ -42,6 +51,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _googleLogin() async {
+    if (_isBusy) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _googleBusy = true; _error = null;
+      _info = 'Hoàn tất đăng nhập Google trong trình duyệt rồi quay lại ứng dụng.';
+    });
+    try {
+      final result = await _googleService.signIn();
+      if (!mounted) return;
+      setState(() { _result = result; _info = null; });
+      _password.clear();
+    } on LoginException catch (error) {
+      if (mounted) setState(() { _error = error.message; _info = null; });
+    } finally {
+      if (mounted) setState(() => _googleBusy = false);
+    }
+  }
+
   Future<void> _forgotPassword() async {
     final reset = await Navigator.push<bool>(context,
       MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
@@ -53,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _email.dispose(); _password.dispose();
+    if (widget.googleService == null) _googleService.dispose();
     if (widget.service == null) _service.dispose();
     super.dispose();
   }
@@ -67,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const Icon(Icons.check_circle, color: Colors.green, size: 56),
           const SizedBox(height: 16),
           const Text('Đăng nhập thành công.'),
-          Text('Xin chào ${_result!.customer.name}!'),
+          Text('Xin chào ${_result!.customer.name.isNotEmpty ? _result!.customer.name : _result!.customer.email}!'),
           Text(_result!.customer.email),
           Text(_result!.customer.role == 'admin' ? 'Tài khoản quản trị viên' : 'Tài khoản khách hàng'),
         ]) : AutofillGroup(child: Form(key: _formKey, child: Column(
@@ -75,26 +104,32 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             Text('Đăng nhập tài khoản', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 24),
-            TextFormField(controller: _email, enabled: !_busy,
+            TextFormField(controller: _email, enabled: !_isBusy,
               keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.username],
               decoration: const InputDecoration(labelText: 'Email'),
               validator: (value) => (value?.trim().length ?? 0) <= 254 &&
                 RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value?.trim() ?? '')
                   ? null : 'Vui lòng nhập email hợp lệ.'),
             const SizedBox(height: 16),
-            TextFormField(controller: _password, enabled: !_busy, obscureText: _hidePassword,
+            TextFormField(controller: _password, enabled: !_isBusy, obscureText: _hidePassword,
               autofillHints: const [AutofillHints.password],
               onFieldSubmitted: (_) => _login(),
               decoration: InputDecoration(labelText: 'Mật khẩu',
-                suffixIcon: IconButton(onPressed: _busy ? null : () => setState(() => _hidePassword = !_hidePassword),
+                suffixIcon: IconButton(onPressed: _isBusy ? null : () => setState(() => _hidePassword = !_hidePassword),
                   icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off))),
               validator: (value) => value == null || value.isEmpty || value.length > 256
                 ? 'Vui lòng nhập mật khẩu hợp lệ.' : null),
             const SizedBox(height: 24),
-            FilledButton(onPressed: _busy ? null : _login,
+            FilledButton(onPressed: _isBusy ? null : _login,
               child: Text(_busy ? 'Đang đăng nhập...' : 'Đăng nhập')),
-            TextButton(onPressed: _busy ? null : _forgotPassword, child: const Text('Quên mật khẩu?')),
-            TextButton(onPressed: _busy ? null : () => Navigator.push(context,
+            const SizedBox(height: 12),
+            OutlinedButton.icon(onPressed: _isBusy ? null : _googleLogin,
+              icon: const Icon(Icons.account_circle_outlined),
+              label: Text(_googleBusy ? 'Đang đăng nhập Google...' : 'Đăng nhập bằng Google')),
+            if (_googleBusy)
+              TextButton(onPressed: _googleService.cancel, child: const Text('Hủy đăng nhập Google')),
+            TextButton(onPressed: _isBusy ? null : _forgotPassword, child: const Text('Quên mật khẩu?')),
+            TextButton(onPressed: _isBusy ? null : () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('Chưa có tài khoản? Đăng ký')),
             if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             if (_info != null) Text(_info!),

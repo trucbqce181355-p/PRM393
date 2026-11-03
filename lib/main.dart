@@ -1,10 +1,15 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05: Mở đăng nhập email/mật khẩu và các liên kết đăng ký/quên mật khẩu.
+// UC05–UC06: Mở đăng nhập email/Google và khởi tạo OAuth Google.
 import 'package:flutter/material.dart';
 
 import 'screens/auth/login_screen.dart';
+import 'services/google_auth_service.dart';
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GoogleAuthService.initialize();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05: Gọi API đăng nhập email/mật khẩu và nhận thông tin đăng nhập từ server.
+// UC05–UC06: Gọi đăng nhập email và nhận thông tin đăng nhập email/Google từ server.
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'otp_request_service.dart';
@@ -11,11 +11,15 @@ class LoginException implements Exception {
 }
 
 class LoginCustomer {
-  const LoginCustomer({required this.id, required this.name, required this.email, required this.role});
+  const LoginCustomer({required this.id, required this.name, required this.email, required this.role,
+    this.profileCompleted = true, this.hasPassword = true, this.sessionProvider = 'password'});
   final String id;
   final String name;
   final String email;
   final String role;
+  final bool profileCompleted;
+  final bool hasPassword;
+  final String sessionProvider;
 }
 
 class LoginResult {
@@ -35,6 +39,21 @@ class LoginService {
   static LoginResult? _currentSession;
   static LoginResult? get currentSession => _currentSession;
 
+  LoginResult acceptSession(Map<String, dynamic> data) {
+    final customer = Map<String, dynamic>.from(data['customer'] as Map);
+    final token = data['token'] as String;
+    final expiresAt = DateTime.parse(data['expiresAt'] as String);
+    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) throw const FormatException('Invalid login response');
+    final session = LoginResult(token: token, expiresAt: expiresAt,
+      customer: LoginCustomer(id: customer['id'] as String, name: customer['name'] as String,
+        email: customer['email'] as String, role: customer['role'] as String,
+        profileCompleted: customer['profileCompleted'] as bool? ?? true,
+        hasPassword: customer['hasPassword'] as bool? ?? true,
+        sessionProvider: customer['sessionProvider'] as String? ?? 'password'));
+    _currentSession = session;
+    return session;
+  }
+
   Future<LoginResult> login(String email, String password) async {
     try {
       final response = await _client.post(Uri.parse('$_baseUrl/login'),
@@ -47,15 +66,7 @@ class LoginService {
           code: result['code'] as String? ?? 'server_error');
       }
       final data = Map<String, dynamic>.from(result['data'] as Map);
-      final customer = Map<String, dynamic>.from(data['customer'] as Map);
-      final token = data['token'] as String;
-      final expiresAt = DateTime.parse(data['expiresAt'] as String);
-      if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) throw const FormatException('Invalid login response');
-      final session = LoginResult(token: token, expiresAt: expiresAt,
-        customer: LoginCustomer(id: customer['id'] as String, name: customer['name'] as String,
-          email: customer['email'] as String, role: customer['role'] as String));
-      _currentSession = session;
-      return session;
+      return acceptSession(data);
     } on LoginException {
       rethrow;
     } catch (_) {
