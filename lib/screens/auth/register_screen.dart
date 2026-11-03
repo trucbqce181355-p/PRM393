@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../../services/otp_request_service.dart';
 import '../../services/otp_verification_service.dart';
+import '../../services/registration_service.dart';
 import 'otp_screen.dart';
+import 'profile_setup_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.service, this.clock});
@@ -28,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   DateTime? _resendAt;
   OtpEmailChallenge? _challenge;
   OtpVerificationResult? _verified;
+  RegisteredCustomer? _createdCustomer;
   DateTime get _now => widget.clock?.call() ?? DateTime.now();
   String get _normalizedEmail => _email.text.trim().toLowerCase();
   int get _remaining {
@@ -73,6 +76,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _challenge = challenge;
         _verified = null;
+        _createdCustomer = null;
         _error = false;
         _message =
             'Đã gửi mã OTP đến ${challenge.email}. Vui lòng kiểm tra hộp thư.';
@@ -103,6 +107,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _verified = result;
       _message = 'Email ${result.email} đã được xác minh.';
+    });
+    await _openProfile();
+  }
+
+  Future<void> _openProfile() async {
+    final verification = _verified;
+    if (verification == null || _createdCustomer != null) return;
+    final customer = await Navigator.push<RegisteredCustomer>(context,
+      MaterialPageRoute(builder: (_) => ProfileSetupScreen(verification: verification,
+        onVerificationExpired: () {
+          if (!mounted) return;
+          setState(() {
+            _verified = null; _challenge = null;
+            _message = 'Vui lòng gửi mã mới và xác minh lại email.';
+          });
+        })));
+    if (!mounted || customer == null) return;
+    setState(() {
+      _createdCustomer = customer;
+      _message = 'Tạo tài khoản thành công cho ${customer.email}.';
     });
   }
 
@@ -189,6 +213,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             : 'Email đã được xác minh',
                       ),
                     ),
+                  if (_verified != null && _verified!.email == _normalizedEmail)
+                    TextButton(onPressed: _createdCustomer == null ? _openProfile : null,
+                      child: Text(_createdCustomer == null ? 'Hoàn tất thông tin tài khoản' : 'Tài khoản đã được tạo')),
                 ],
               ),
             ),

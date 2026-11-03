@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC02: Endpoint gửi/gửi lại và xác minh OTP email.
+// UC01–UC03: Gửi, xác minh OTP email và tạo tài khoản sau xác minh.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -8,8 +8,12 @@ const nodemailer = require('nodemailer');
 const { OtpRequestService } = require('./otp-request-service');
 const { MongoOtpRequestStore } = require('./otp-request-store');
 const { OtpVerificationService } = require('./otp-verification-service');
+const { RegistrationService } = require('./registration-service');
+const { MongoRegistrationStore } = require('./registration-store');
 
-function createApp(service, verification = new OtpVerificationService({ store: service.store, now: service.now })) {
+function createApp(service,
+  verification = new OtpVerificationService({ store: service.store, now: service.now }),
+  registration = new RegistrationService({ store: new MongoRegistrationStore(service.store.db), now: service.now })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -22,12 +26,16 @@ function createApp(service, verification = new OtpVerificationService({ store: s
     verification.verify(req.body?.challengeId, req.body?.otp, req.ip)
       .then(data => res.json({ success: true, data })).catch(next);
   });
+  app.post('/api/auth/register', (req, res, next) => {
+    registration.register(req.body)
+      .then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = error.status ?? 503;
     if (error.retryAfter > 0) res.set('Retry-After', String(error.retryAfter));
     res.status(status).json({ success: false,
-      message: status < 500 ? error.message : 'Dịch vụ OTP tạm thời không khả dụng. Vui lòng thử lại sau.',
+      message: status < 500 ? error.message : 'Dịch vụ tài khoản tạm thời không khả dụng. Vui lòng thử lại sau.',
       retryAfter: error.retryAfter ?? 0,
       code: typeof error.code === 'string' ? error.code : undefined,
       remainingAttempts: error.remainingAttempts ?? undefined });
@@ -40,6 +48,8 @@ async function main() {
   await client.connect();
   const store = new MongoOtpRequestStore(client.db(process.env.DB_NAME || 'traicay_db'));
   await store.init();
+  const registrationStore = new MongoRegistrationStore(store.db);
+  await registrationStore.init();
   const transport = nodemailer.createTransport({ service: 'gmail',
     auth: { user: process.env.SMTP_USERNAME, pass: process.env.SMTP_PASSWORD },
     connectionTimeout: 10000, socketTimeout: 15000 });
@@ -49,8 +59,9 @@ async function main() {
       to: email, subject: 'Mã xác minh email Fruitopia',
       text: `Mã OTP của bạn: ${otp}. Mã có hiệu lực ${Math.ceil(ttl / 60)} phút. Không chia sẻ mã này.` });
   } });
-  const server = createApp(service).listen(Number(process.env.PORT || 5001), process.env.HOST || '127.0.0.1', () => {
-    console.log('UC01 email OTP service ready');
+  const registration = new RegistrationService({ store: registrationStore });
+  const server = createApp(service, undefined, registration).listen(Number(process.env.PORT || 5001), process.env.HOST || '127.0.0.1', () => {
+    console.log('Email verification and account registration service ready');
   });
   const close = () => server.close(async () => { await client.close(); process.exit(0); });
   process.once('SIGINT', close); process.once('SIGTERM', close);
