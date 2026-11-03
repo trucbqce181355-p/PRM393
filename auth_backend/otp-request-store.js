@@ -42,5 +42,20 @@ class MongoOtpRequestStore {
     await challenges.updateOne({ _id: id }, { $set: { state: 'sent' } });
   }
   async removeChallenge(id) { await this.db.collection('auth_challenges').deleteOne({ _id: id }); }
+
+  // UC02: Increment attempts atomically before comparing the OTP.
+  async attemptOtp(id, now, maximum) {
+    return this.db.collection('auth_challenges').findOneAndUpdate({ _id: id,
+      state: 'sent', expiresAt: { $gt: now },
+      $or: [{ attempts: { $lt: maximum } }, { attempts: { $exists: false } }] },
+    { $inc: { attempts: 1 } }, { returnDocument: 'after' });
+  }
+  async getChallenge(id) { return this.db.collection('auth_challenges').findOne({ _id: id }); }
+  async verifyOtp(id, hash, proofHash, now, proofExpiresAt) {
+    return this.db.collection('auth_challenges').findOneAndUpdate({ _id: id,
+      state: 'sent', otpHash: hash, expiresAt: { $gt: now } },
+    { $set: { state: 'verified', proofHash, verifiedAt: now, expiresAt: proofExpiresAt },
+      $unset: { otpHash: '' } }, { returnDocument: 'after' });
+  }
 }
 module.exports = { MongoOtpRequestStore };

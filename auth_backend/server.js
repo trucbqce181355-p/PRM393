@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01: Endpoint yêu cầu/gửi lại OTP email; không có các endpoint UC khác.
+// UC01–UC02: Endpoint gửi/gửi lại và xác minh OTP email.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -7,8 +7,9 @@ const { MongoClient } = require('mongodb');
 const nodemailer = require('nodemailer');
 const { OtpRequestService } = require('./otp-request-service');
 const { MongoOtpRequestStore } = require('./otp-request-store');
+const { OtpVerificationService } = require('./otp-verification-service');
 
-function createApp(service) {
+function createApp(service, verification = new OtpVerificationService({ store: service.store, now: service.now })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -17,13 +18,19 @@ function createApp(service) {
     service.request(req.body?.email, req.ip)
       .then(data => res.json({ success: true, data })).catch(next);
   });
+  app.post('/api/auth/otp/verify', (req, res, next) => {
+    verification.verify(req.body?.challengeId, req.body?.otp, req.ip)
+      .then(data => res.json({ success: true, data })).catch(next);
+  });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = error.status ?? 503;
     if (error.retryAfter > 0) res.set('Retry-After', String(error.retryAfter));
     res.status(status).json({ success: false,
-      message: status < 500 ? error.message : 'Không thể gửi email OTP. Vui lòng thử lại sau.',
-      retryAfter: error.retryAfter ?? 0 });
+      message: status < 500 ? error.message : 'Dịch vụ OTP tạm thời không khả dụng. Vui lòng thử lại sau.',
+      retryAfter: error.retryAfter ?? 0,
+      code: typeof error.code === 'string' ? error.code : undefined,
+      remainingAttempts: error.remainingAttempts ?? undefined });
   });
   return app;
 }

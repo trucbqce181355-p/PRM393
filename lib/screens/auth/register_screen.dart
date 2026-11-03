@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/otp_request_service.dart';
+import '../../services/otp_verification_service.dart';
+import 'otp_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.service, this.clock});
@@ -25,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _cooldownEmail;
   DateTime? _resendAt;
   OtpEmailChallenge? _challenge;
+  OtpVerificationResult? _verified;
   DateTime get _now => widget.clock?.call() ?? DateTime.now();
   String get _normalizedEmail => _email.text.trim().toLowerCase();
   int get _remaining {
@@ -69,6 +72,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() {
         _challenge = challenge;
+        _verified = null;
         _error = false;
         _message =
             'Đã gửi mã OTP đến ${challenge.email}. Vui lòng kiểm tra hộp thư.';
@@ -84,6 +88,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _openVerification() async {
+    final challenge = _challenge;
+    if (challenge == null) return;
+    final result = await Navigator.push<OtpVerificationResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OtpScreen(challenge: challenge, clock: widget.clock),
+      ),
+    );
+    if (!mounted || result == null || _challenge?.id != challenge.id) return;
+    setState(() {
+      _verified = result;
+      _message = 'Email ${result.email} đã được xác minh.';
+    });
   }
 
   @override
@@ -158,6 +178,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ],
+                  if (_challenge?.email == _normalizedEmail)
+                    TextButton(
+                      onPressed: _sending || _verified != null
+                          ? null
+                          : _openVerification,
+                      child: Text(
+                        _verified == null
+                            ? 'Nhập mã xác minh'
+                            : 'Email đã được xác minh',
+                      ),
+                    ),
                 ],
               ),
             ),

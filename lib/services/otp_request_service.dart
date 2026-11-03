@@ -19,11 +19,15 @@ class OtpEmailChallenge {
     required this.email,
     required this.expiresIn,
     required this.resendAfter,
+    this.expiresAt,
+    this.maxAttempts = 5,
   });
   final String id;
   final String email;
   final int expiresIn;
   final int resendAfter;
+  final DateTime? expiresAt;
+  final int maxAttempts;
 }
 
 class OtpRequestService {
@@ -66,6 +70,8 @@ class OtpRequestService {
         email: data['email'] as String,
         expiresIn: data['expiresIn'] as int,
         resendAfter: data['resendAfter'] as int,
+        expiresAt: DateTime.tryParse(data['expiresAt'] as String? ?? ''),
+        maxAttempts: data['maxAttempts'] as int? ?? 5,
       );
     } on OtpRequestException {
       rethrow;

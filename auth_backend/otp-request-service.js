@@ -8,6 +8,7 @@ class OtpRequestError extends Error {
   }
 }
 const digest = value => createHash('sha256').update(value).digest('hex');
+const MAX_OTP_ATTEMPTS = 5;
 
 class OtpRequestService {
   constructor({ store, sendEmail, now = () => new Date(), ttlSeconds = 300, resendSeconds = 60 }) {
@@ -31,7 +32,7 @@ class OtpRequestService {
     const challengeId = randomBytes(32).toString('base64url');
     const otp = String(randomInt(100000, 1000000));
     await this.store.putChallenge({ _id: challengeId, email, purpose: 'registration',
-      otpHash: digest(`${challengeId}:${otp}`), state: 'sending',
+      otpHash: digest(`${challengeId}:${otp}`), state: 'sending', attempts: 0,
       expiresAt: new Date(now.getTime() + this.ttlSeconds * 1000) });
     try {
       await this.sendEmail(email, otp, this.ttlSeconds);
@@ -41,7 +42,9 @@ class OtpRequestService {
       throw new OtpRequestError(503, 'Không thể gửi email OTP. Vui lòng thử lại sau.');
     }
     // The OTP itself is delivered only by email, never in the response or logs.
-    return { challengeId, email, expiresIn: this.ttlSeconds, resendAfter: this.resendSeconds };
+    return { challengeId, email, expiresIn: this.ttlSeconds, resendAfter: this.resendSeconds,
+      expiresAt: new Date(now.getTime() + this.ttlSeconds * 1000).toISOString(),
+      maxAttempts: MAX_OTP_ATTEMPTS };
   }
 }
-module.exports = { OtpRequestService, OtpRequestError, digest };
+module.exports = { OtpRequestService, OtpRequestError, digest, MAX_OTP_ATTEMPTS };
