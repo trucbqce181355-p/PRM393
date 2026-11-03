@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC08: Hoàn tất hồ sơ tài khoản Google bằng phiên đăng nhập của ứng dụng.
+// UC08, UC18: Hoàn tất hồ sơ Google và từ chối phiên bị thu hồi do đổi trạng thái.
 const { digest } = require('./otp-request-service');
 const { validatePassword, hashPassword } = require('./password-security');
 
@@ -17,6 +17,9 @@ class GoogleProfileService {
     if (!session) throw new GoogleProfileError(401, 'session_expired', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập Google lại.');
     const user = await this.store.findGoogleUser(session.userId);
     if (!user) throw new GoogleProfileError(403, 'account_unavailable', 'Tài khoản không khả dụng. Vui lòng đăng nhập lại.');
+    if (user.sessionsInvalidBefore && (!session.createdAt || new Date(session.createdAt) <= new Date(user.sessionsInvalidBefore))) {
+      throw new GoogleProfileError(401, 'session_expired', 'Trạng thái tài khoản đã thay đổi. Vui lòng đăng nhập lại.');
+    }
     if (user.name?.trim() && user.phone?.trim()) {
       throw new GoogleProfileError(409, 'profile_completed', 'Hồ sơ đã được hoàn tất. Vui lòng đăng nhập lại để cập nhật thông tin.');
     }

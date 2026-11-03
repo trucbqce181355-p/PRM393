@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC17: Xem, tìm kiếm và lọc danh sách khách hàng theo trạng thái tài khoản.
+// UC17–UC18: Xem khách hàng và xác nhận khóa/mở khóa tài khoản.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_summary.dart';
@@ -18,6 +18,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> with Widget
   List<CustomerSummary> _customers = [];
   bool _loading = false;
   bool _denied = false;
+  String? _updatingId;
   int _filter = 0;
   String? _error;
   @override
@@ -36,7 +37,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> with Widget
     if (state == AppLifecycleState.resumed) unawaited(_load());
   }
   Future<void> _load() async {
-    if (_loading || _denied) return;
+    if (_loading || _denied || _updatingId != null) return;
     setState(() { _loading = true; _error = null; _customers = []; });
     try {
       final customers = await widget.service.fetchCustomers(widget.session);
@@ -45,6 +46,40 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> with Widget
       if (mounted) setState(() { _error = error.message; _denied = ['session_expired', 'admin_required'].contains(error.code); });
     } finally { if (mounted) setState(() => _loading = false); }
   }
+  Future<void> _changeStatus(CustomerSummary customer) async {
+    if (_loading || _denied || _updatingId != null) return;
+    final targetActive = !customer.isActive;
+    final action = targetActive ? 'Mở khóa' : 'Khóa';
+    setState(() => _updatingId = customer.id);
+    try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+        title: Text('$action tài khoản'),
+        content: Text(targetActive
+          ? 'Mở khóa tài khoản ${customer.email}? Khách hàng cần đăng nhập lại.'
+          : 'Khóa tài khoản ${customer.email}? Các phiên hiện tại sẽ bị thu hồi.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(action)),
+        ]));
+      if (!mounted || _denied || confirmed != true) return;
+      final updated = await widget.service.updateCustomerStatus(widget.session, customer.id, targetActive);
+      if (!mounted || _denied) return;
+      setState(() {
+        _customers = _customers.map((item) => item.id == updated.id ? updated : item).toList();
+        _error = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(targetActive
+        ? 'Đã mở khóa. Khách hàng có thể đăng nhập lại.' : 'Đã khóa tài khoản và thu hồi các phiên cũ.')));
+    } on LoginException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _denied = ['session_expired', 'admin_required'].contains(error.code);
+        if (_denied) _customers = [];
+      });
+    } finally { if (mounted) setState(() => _updatingId = null); }
+  }
+
   List<CustomerSummary> get _filtered {
     final query = _search.text.trim().toLowerCase();
     return _customers.where((customer) =>
@@ -64,7 +99,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> with Widget
     final active = _customers.where((customer) => customer.isActive).length;
     return Scaffold(
       appBar: AppBar(title: const Text('Danh sách khách hàng'), actions: [
-        IconButton(onPressed: _loading || _denied ? null : _load,
+        IconButton(onPressed: _loading || _denied || _updatingId != null ? null : _load,
           tooltip: 'Tải lại khách hàng', icon: const Icon(Icons.refresh)),
       ]),
       body: _loading ? const Center(child: CircularProgressIndicator())
@@ -107,6 +142,10 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> with Widget
                         label: Text(customer.isActive ? 'Hoạt động' : 'Tạm khóa')),
                       if (customer.createdAt != null)
                         Text('Ngày tạo: ${customer.createdAt!.toLocal().toString().split('.').first}'),
+                      TextButton.icon(onPressed: _updatingId != null || _denied ? null : () => _changeStatus(customer),
+                        icon: Icon(customer.isActive ? Icons.lock_outline : Icons.lock_open),
+                        label: Text(_updatingId == customer.id ? 'Đang xử lý...'
+                          : customer.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản')),
                     ])));
                 })),
           ]),

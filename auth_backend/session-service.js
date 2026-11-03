@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC09–UC10: Khôi phục phiên và thu hồi đúng phiên khi đăng xuất.
+// UC09–UC10, UC18: Khôi phục, thu hồi và từ chối phiên cũ sau khi khóa/mở khóa.
 const { digest } = require('./otp-request-service');
 class SessionError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -29,6 +29,9 @@ class SessionService {
     }
     if (user.passwordChangedAt && (!session.createdAt || new Date(user.passwordChangedAt) > session.createdAt)) {
       throw new SessionError(401, 'session_expired', 'Mật khẩu đã thay đổi. Vui lòng đăng nhập lại.');
+    }
+    if (user.sessionsInvalidBefore && (!session.createdAt || new Date(session.createdAt) <= new Date(user.sessionsInvalidBefore))) {
+      throw new SessionError(401, 'session_expired', 'Trạng thái tài khoản đã thay đổi. Vui lòng đăng nhập lại.');
     }
     if (!await this.store.findSession(hash, this.now())) {
       throw new SessionError(401, 'session_expired', 'Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.');

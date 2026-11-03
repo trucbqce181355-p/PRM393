@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC17: Quản lý phiên và gọi API hồ sơ/hỗ trợ/danh sách khách hàng theo quyền.
+// UC05–UC18: Quản lý phiên, hồ sơ, hỗ trợ và trạng thái khách hàng theo quyền.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -381,6 +381,33 @@ class LoginService {
         CustomerSummary.fromJson(Map<String, dynamic>.from(item as Map))).toList();
     } on LoginException { rethrow; }
     catch (_) { throw const LoginException('Không thể kết nối để tải khách hàng. Vui lòng thử lại.', code: 'customers_connection_error'); }
+  }
+
+  Future<CustomerSummary> updateCustomerStatus(LoginResult session, String id, bool isActive) async {
+    bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
+    if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
+    if (_currentSession!.customer.role != 'admin') {
+      throw const LoginException('Chỉ quản trị viên được khóa/mở khóa tài khoản.', code: 'admin_required');
+    }
+    try {
+      final response = await _client.patch(Uri.parse('$_baseUrl/customers/${Uri.encodeComponent(id)}/status'),
+        headers: {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'},
+        body: jsonEncode({'isActive': isActive})).timeout(const Duration(seconds: 25));
+      if (!active()) throw const LoginException('Phiên đã hết hạn hoặc thay đổi.', code: 'session_expired');
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || (response.statusCode == 403 && result['code'] == 'account_unavailable')) {
+        await invalidateSession(session.token, message: result['message'] as String?);
+        throw LoginException(result['message'] as String? ?? 'Vui lòng đăng nhập lại.', code: 'session_expired');
+      }
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Không thể thay đổi trạng thái tài khoản.',
+          code: result['code'] as String? ?? 'customer_status_error');
+      }
+      final customer = CustomerSummary.fromJson(Map<String, dynamic>.from(result['data']['customer'] as Map));
+      if (customer.id != id || customer.isActive != isActive) throw const FormatException('Customer status mismatch');
+      return customer;
+    } on LoginException { rethrow; }
+    catch (_) { throw const LoginException('Không thể xác nhận thay đổi trạng thái. Vui lòng tải lại danh sách trước khi thử lại.', code: 'customer_status_connection_error'); }
   }
 
   Future<void> logout({Future<void> Function()? clearProviderSession}) async {

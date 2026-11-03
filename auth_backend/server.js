@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC17: Xác thực, hồ sơ, hỗ trợ và xem danh sách khách hàng theo quyền.
+// UC01–UC18: Xác thực, hỗ trợ, quản lý khách hàng và khóa/mở khóa tài khoản.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -135,6 +135,10 @@ function createApp(service,
   app.get('/api/auth/customers', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     customers.list(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.patch('/api/auth/customers/:id/status', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    customers.changeStatus(token, req.params.id, req.body).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
