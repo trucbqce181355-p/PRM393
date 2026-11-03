@@ -10,6 +10,9 @@ class Order {
   final String itemsSummary;
   OrderStatus status;
   final DateTime createdAt;
+  DateTime? readyAt;
+  DateTime? acceptedAt;
+  DateTime? deliveredAt;
 
   Order({
     required this.id,
@@ -21,6 +24,9 @@ class Order {
     this.itemsSummary = '',
     this.status = OrderStatus.pending,
     required this.createdAt,
+    this.readyAt,
+    this.acceptedAt,
+    this.deliveredAt,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -46,6 +52,9 @@ class Order {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      readyAt: DateTime.tryParse(json['readyAt']?.toString() ?? ''),
+      acceptedAt: DateTime.tryParse(json['acceptedAt']?.toString() ?? ''),
+      deliveredAt: DateTime.tryParse(json['deliveredAt']?.toString() ?? ''),
     );
   }
 
@@ -79,6 +88,9 @@ class Order {
       'itemsSummary': itemsSummary,
       'status': statusString,
       'createdAt': createdAt.toIso8601String(),
+      if (readyAt != null) 'readyAt': readyAt!.toIso8601String(),
+      if (acceptedAt != null) 'acceptedAt': acceptedAt!.toIso8601String(),
+      if (deliveredAt != null) 'deliveredAt': deliveredAt!.toIso8601String(),
     };
   }
 }

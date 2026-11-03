@@ -30,13 +30,35 @@ class OrderStatusService {
     if (index == -1) return null;
 
     final order = orders[index];
+    final now = DateTime.now();
     order.status = status;
+    final updates = <String, dynamic>{
+      'status': labelFor(status),
+      'updatedAt': now.toIso8601String(),
+    };
+    switch (status) {
+      case OrderStatus.ready:
+        order.readyAt = now;
+        updates['readyAt'] = now.toIso8601String();
+        break;
+      case OrderStatus.delivering:
+        order.acceptedAt = now;
+        updates['acceptedAt'] = now.toIso8601String();
+        break;
+      case OrderStatus.completed:
+        order.deliveredAt = now;
+        updates['deliveredAt'] = now.toIso8601String();
+        break;
+      case OrderStatus.pending:
+      case OrderStatus.cancelled:
+        break;
+    }
     await saveOrders();
 
     try {
       await MongoDBService.getCollection('orders').updateOne(
         mongo.where.eq('id', orderId),
-        mongo.modify.set('status', labelFor(status)),
+        {'\$set': updates},
       );
     } catch (error) {
       print('MongoDB Error (updateOrderStatus): $error');

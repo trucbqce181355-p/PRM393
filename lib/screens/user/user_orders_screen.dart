@@ -6,6 +6,7 @@ import '../../services/order_notification_service.dart';
 import '../../utils/format_helper.dart';
 import 'review_screen.dart';
 import 'user_order_details_screen.dart';
+import 'user_order_tracking_screen.dart';
 import 'user_home_screen.dart';
 
 class UserOrdersScreen extends StatefulWidget {
@@ -55,6 +56,9 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
         'customerEmail': o.customerEmail,
         'phone': o.customerPhone,
         'address': o.address,
+        'readyAt': o.readyAt?.toIso8601String(),
+        'acceptedAt': o.acceptedAt?.toIso8601String(),
+        'deliveredAt': o.deliveredAt?.toIso8601String(),
       });
     }
 
@@ -318,20 +322,26 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                     ),
                   ],
                 ),
-                if (isDelivering) ...[
-                  const SizedBox(height: 14),
-                  SizedBox(
+                const SizedBox(height: 14),
+                SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => UserOrderTrackingScreen(order: order),
+                          ),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text('Theo dõi vận chuyển', style: TextStyle(color: Colors.white)),
+                      child: const Text('Theo dõi đơn hàng', style: TextStyle(color: Colors.white)),
                     ),
-                  )
-                ] else if (isCompleted) ...[
+                  ),
+                if (isCompleted) ...[
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/format_helper.dart';
+import 'user_order_tracking_screen.dart';
 
 class UserOrderDetailsScreen extends StatelessWidget {
   const UserOrderDetailsScreen({super.key, required this.order});
@@ -72,6 +73,24 @@ class UserOrderDetailsScreen extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserOrderTrackingScreen(order: order),
+                ),
+              );
+            },
+            icon: const Icon(Icons.local_shipping_outlined),
+            label: const Text('Theo dõi trạng thái đơn hàng'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ],
