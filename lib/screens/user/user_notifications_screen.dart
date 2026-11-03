@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/data_service.dart';
 import '../../services/order_notification_service.dart';
 
 class UserNotificationsScreen extends StatefulWidget {
@@ -24,6 +25,11 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
     final email = AuthService.userEmail;
     if (email == null || email.isEmpty) return;
 
+    await DataService.refreshOrders();
+    await OrderNotificationService.syncStatusChanges(
+      userEmail: email,
+      currentOrders: DataService.getOrdersForCustomer(email),
+    );
     final notifications = OrderNotificationService.forCustomer(email);
     await OrderNotificationService.markAllRead(email);
     if (!mounted) return;

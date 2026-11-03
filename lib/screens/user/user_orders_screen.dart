@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/data_service.dart';
+import '../../services/order_notification_service.dart';
 import '../../utils/format_helper.dart';
 import 'review_screen.dart';
 import 'user_home_screen.dart';
@@ -30,6 +31,12 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
     await DataService.refreshOrders();
 
     final userEmail = AuthService.userEmail;
+    if (userEmail != null && userEmail.isNotEmpty) {
+      await OrderNotificationService.syncStatusChanges(
+        userEmail: userEmail,
+        currentOrders: DataService.getOrdersForCustomer(userEmail),
+      );
+    }
     final List<Map<String, dynamic>> loaded = [];
 
     // 1. Lấy từ DataService (đã sync với MongoDB traicay_db)

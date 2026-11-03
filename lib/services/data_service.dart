@@ -6,7 +6,6 @@ import '../models/customer.dart';
 import '../models/category.dart';
 import '../models/review.dart';
 import 'mongodb_service.dart';
-import 'order_notification_service.dart';
 import 'order_status_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
@@ -687,18 +686,11 @@ class DataService {
   }
 
   static Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
-    final updatedOrder = await OrderStatusService.updateStatus(
+    await OrderStatusService.updateStatus(
       orders: orders,
       orderId: orderId,
       status: newStatus,
       saveOrders: _saveOrders,
-    );
-    if (updatedOrder == null) return;
-
-    await OrderNotificationService.notifyStatusChanged(
-      orderId: updatedOrder.id,
-      userEmail: updatedOrder.customerEmail,
-      status: updatedOrder.status,
     );
   }
 
