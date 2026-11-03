@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC10: Đăng nhập, khôi phục phiên và xác nhận đăng xuất.
+// UC05–UC11: Đăng nhập, quản lý phiên và mở thông tin cá nhân/hạng thành viên.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
@@ -8,6 +8,7 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'link_google_screen.dart';
 import 'google_profile_setup_screen.dart';
+import '../user/user_profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.service, this.googleService});
@@ -214,6 +215,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           Text('Xin chào ${_result!.customer.name.isNotEmpty ? _result!.customer.name : _result!.customer.email}!'),
           Text(_result!.customer.email),
           Text(_result!.customer.role == 'admin' ? 'Tài khoản quản trị viên' : 'Tài khoản khách hàng'),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(onPressed: _isBusy ? null : () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => UserProfileScreen(session: _result!, service: _service))),
+            icon: const Icon(Icons.person_outline), label: const Text('Xem thông tin cá nhân và hạng thành viên')),
           const SizedBox(height: 16),
           FilledButton.icon(onPressed: _isBusy ? null : _confirmLogout, icon: const Icon(Icons.logout),
             label: Text(_logoutBusy ? 'Đang đăng xuất...' : 'Đăng xuất')),

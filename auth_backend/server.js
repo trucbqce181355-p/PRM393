@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC10: Xác thực tài khoản, quản lý phiên và đăng xuất.
+// UC01–UC11: Xác thực tài khoản, quản lý phiên và xem hồ sơ/hạng thành viên.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -21,6 +21,8 @@ const { GoogleProfileService } = require('./google-profile-service');
 const { MongoGoogleProfileStore } = require('./google-profile-store');
 const { SessionService } = require('./session-service');
 const { MongoSessionStore } = require('./session-store');
+const { ProfileService } = require('./profile-service');
+const { MongoProfileStore } = require('./profile-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
@@ -29,7 +31,8 @@ function createApp(service,
   login = new LoginService({ store: new MongoLoginStore(service.store.db), now: service.now }),
   google = new GoogleAuthService({ store: new MongoGoogleAuthStore(service.store.db), verifyGoogle: verifyGoogleToken, now: service.now }),
   googleProfile = new GoogleProfileService({ store: new MongoGoogleProfileStore(service.store.db), now: service.now }),
-  sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now })) {
+  sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now }),
+  profile = new ProfileService({ sessions, store: new MongoProfileStore(service.store.db) })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -71,6 +74,10 @@ function createApp(service,
   app.post('/api/auth/logout', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     sessions.logout(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.get('/api/auth/profile', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    profile.view(token).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);

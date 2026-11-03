@@ -1,10 +1,11 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC10: Đăng nhập, quản lý phiên và thu hồi/xóa phiên khi đăng xuất.
+// UC05–UC11: Đăng nhập, quản lý phiên và đọc hồ sơ tài khoản đã xác thực.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'otp_request_service.dart';
 import 'session_storage.dart';
+import '../models/customer_profile.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -200,6 +201,32 @@ class LoginService {
       rethrow;
     } catch (_) {
       throw const LoginException('Không thể kết nối dịch vụ hồ sơ. Vui lòng thử lại.', code: 'connection_error');
+    }
+  }
+
+  Future<CustomerProfile> fetchProfile(LoginResult session) async {
+    bool active() => !_disposed && _currentSession?.token == session.token &&
+      session.expiresAt.isAfter(DateTime.now());
+    if (!active()) throw const LoginException('Vui lòng đăng nhập lại để xem hồ sơ.', code: 'session_expired');
+    try {
+      final response = await _client.get(Uri.parse('$_baseUrl/profile'),
+        headers: {'Authorization': 'Bearer ${session.token}'}).timeout(const Duration(seconds: 25));
+      if (!active()) throw const LoginException('Phiên đăng nhập đã thay đổi hoặc hết hạn.', code: 'session_expired');
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await invalidateSession(session.token, message: result['message'] as String?);
+        throw LoginException(result['message'] as String? ?? 'Vui lòng đăng nhập lại.', code: 'session_expired');
+      }
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Không thể tải hồ sơ.', code: 'profile_error');
+      }
+      final profile = CustomerProfile.fromJson(Map<String, dynamic>.from(result['data'] as Map));
+      if (profile.id != session.customer.id) throw const FormatException('Profile identity mismatch');
+      return profile;
+    } on LoginException {
+      rethrow;
+    } catch (_) {
+      throw const LoginException('Không thể tải thông tin cá nhân. Vui lòng thử lại.', code: 'profile_connection_error');
     }
   }
 
