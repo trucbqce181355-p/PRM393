@@ -4,6 +4,7 @@ import '../../models/order.dart';
 import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/data_service.dart';
+import '../../services/cod_payment_service.dart';
 import '../../utils/snackbar_helper.dart';
 import 'user_home_screen.dart';
 import 'user_addresses_screen.dart';
@@ -294,9 +295,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
-    // COD - Giả lập xử lý nhanh
-    await Future.delayed(const Duration(seconds: 1));
-    _completeOrder();
+    await const CodPaymentService().process(_completeOrder);
   }
 
   void _showPaymentGatewaySimulation() {
@@ -350,7 +349,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _completeOrder() async {
+  Future<void> _completeOrder() async {
     if (!AuthService.isLoggedIn) {
       setState(() => _isProcessing = false);
       SnackbarHelper.showError(context, 'Vui lòng đăng nhập để tiến hành mua hàng!');
