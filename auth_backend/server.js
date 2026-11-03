@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC14: Xác thực, hồ sơ, quản lý và chọn địa chỉ giao hàng mặc định.
+// UC01–UC15: Xác thực, hồ sơ, địa chỉ và hội thoại hỗ trợ khách hàng.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -25,6 +25,8 @@ const { ProfileService } = require('./profile-service');
 const { MongoProfileStore } = require('./profile-store');
 const { AddressService } = require('./address-service');
 const { MongoAddressStore } = require('./address-store');
+const { SupportService } = require('./support-service');
+const { MongoSupportStore } = require('./support-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
@@ -35,10 +37,11 @@ function createApp(service,
   googleProfile = new GoogleProfileService({ store: new MongoGoogleProfileStore(service.store.db), now: service.now }),
   sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now }),
   profile = new ProfileService({ sessions, store: new MongoProfileStore(service.store.db) }),
-  addresses = new AddressService({ sessions, store: new MongoAddressStore(service.store.db) })) {
+  addresses = new AddressService({ sessions, store: new MongoAddressStore(service.store.db) }),
+  support = new SupportService({ sessions, store: new MongoSupportStore(service.store.db) })) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '2kb' }));
+  app.use(express.json({ limit: '20kb' }));
   app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   app.post('/api/auth/otp/request', (req, res, next) => {
     service.request(req.body?.email, req.ip, req.body?.purpose)
@@ -106,6 +109,14 @@ function createApp(service,
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     addresses.delete(token, req.params.id).then(data => res.json({ success: true, data })).catch(next);
   });
+  app.get('/api/auth/support', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    support.snapshot(token, req.query.conversationId).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/support/messages', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    support.send(token, req.body).then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = error.status ?? 503;
@@ -131,6 +142,7 @@ async function main() {
   const googleStore = new MongoGoogleAuthStore(store.db);
   await googleStore.init();
   await new MongoAddressStore(store.db).init();
+  await new MongoSupportStore(store.db).init();
   const transport = nodemailer.createTransport({ service: 'gmail',
     auth: { user: process.env.SMTP_USERNAME, pass: process.env.SMTP_PASSWORD },
     connectionTimeout: 10000, socketTimeout: 15000 });

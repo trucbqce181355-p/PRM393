@@ -1,11 +1,12 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11–UC13: Xem/chỉnh sửa hồ sơ và mở danh sách địa chỉ giao hàng.
+// UC11–UC15: Hồ sơ, địa chỉ và mở hội thoại hỗ trợ của tài khoản.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
 import '../../services/login_service.dart';
 import 'user_edit_profile_screen.dart';
 import 'user_addresses_screen.dart';
+import 'user_support_chat_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -68,6 +69,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
     if (_sessionInvalid) Navigator.pop(context);
   }
 
+  Future<void> _openSupport() async {
+    if (_loading || _editing || _sessionInvalid) return;
+    setState(() => _editing = true);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+      UserSupportChatScreen(session: widget.session, service: widget.service)));
+    if (!mounted) return;
+    setState(() => _editing = false);
+    if (_sessionInvalid) Navigator.pop(context);
+  }
+
   Future<void> _load() async {
     if (_loading || _editing || _sessionInvalid) return;
     setState(() { _loading = true; _profile = null; _error = null; });
@@ -124,6 +135,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
               icon: const Icon(Icons.edit_outlined), label: const Text('Chỉnh sửa thông tin cá nhân')),
             OutlinedButton.icon(onPressed: _editing ? null : _openAddresses,
               icon: const Icon(Icons.location_on_outlined), label: const Text('Địa chỉ giao hàng')),
+            OutlinedButton.icon(onPressed: _editing ? null : _openSupport,
+              icon: const Icon(Icons.support_agent), label: Text(profile.role == 'admin'
+                ? 'Hội thoại hỗ trợ khách hàng' : 'Gửi yêu cầu/tin nhắn và xem phản hồi')),
             if (profile.role != 'admin') ...[
               const SizedBox(height: 16),
               Card(child: Column(children: [

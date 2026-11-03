@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC14: Quản lý phiên, hồ sơ, địa chỉ và lựa chọn địa chỉ mặc định.
+// UC05–UC15: Quản lý phiên, hồ sơ, địa chỉ và hội thoại hỗ trợ.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -7,6 +7,7 @@ import 'otp_request_service.dart';
 import 'session_storage.dart';
 import '../models/customer_profile.dart';
 import '../models/delivery_address.dart';
+import '../models/support_message.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -297,6 +298,38 @@ class LoginService {
       return Map<String, dynamic>.from(result['data'] as Map);
     } on LoginException { rethrow; }
     catch (_) { throw const LoginException('Không thể kết nối dịch vụ địa chỉ. Vui lòng thử lại.', code: 'address_connection_error'); }
+  }
+
+  Future<SupportSnapshot> fetchSupport(LoginResult session, {String? conversationId}) async =>
+    SupportSnapshot.fromJson(await _supportRequest(session, conversationId: conversationId));
+
+  Future<void> sendSupportMessage(LoginResult session, String message, {String? conversationId}) async {
+    await _supportRequest(session, message: message, conversationId: conversationId);
+  }
+
+  Future<Map<String, dynamic>> _supportRequest(LoginResult session, {String? message, String? conversationId}) async {
+    bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
+    if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
+    final headers = {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'};
+    try {
+      final uri = Uri.parse('$_baseUrl/support${message == null ? '' : '/messages'}');
+      final response = await (message == null
+        ? _client.get(conversationId == null ? uri : uri.replace(queryParameters: {'conversationId': conversationId}), headers: headers)
+        : _client.post(uri, headers: headers, body: jsonEncode({'message': message,
+          if (conversationId != null) 'conversationId': conversationId}))).timeout(const Duration(seconds: 25));
+      if (!active()) throw const LoginException('Phiên đã hết hạn hoặc thay đổi.', code: 'session_expired');
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || (response.statusCode == 403 && result['code'] == 'account_unavailable')) {
+        await invalidateSession(session.token, message: result['message'] as String?);
+        throw LoginException(result['message'] as String? ?? 'Vui lòng đăng nhập lại.', code: 'session_expired');
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300 || result['success'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Không thể xử lý nội dung hỗ trợ.',
+          code: result['code'] as String? ?? 'support_error');
+      }
+      return Map<String, dynamic>.from(result['data'] as Map);
+    } on LoginException { rethrow; }
+    catch (_) { throw const LoginException('Không thể kết nối dịch vụ hỗ trợ. Vui lòng thử lại.', code: 'support_connection_error'); }
   }
 
   Future<void> logout({Future<void> Function()? clearProviderSession}) async {
