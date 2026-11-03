@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC11: Đăng nhập, quản lý phiên và đọc hồ sơ tài khoản đã xác thực.
+// UC05–UC12: Đăng nhập, quản lý phiên và xem/chỉnh sửa hồ sơ đã xác thực.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -204,13 +204,20 @@ class LoginService {
     }
   }
 
-  Future<CustomerProfile> fetchProfile(LoginResult session) async {
+  Future<CustomerProfile> fetchProfile(LoginResult session) => _requestProfile(session);
+
+  Future<CustomerProfile> updateProfile(LoginResult session, {required String name, required String phone}) =>
+    _requestProfile(session, fields: {'name': name.trim(), 'phone': phone.trim()});
+
+  Future<CustomerProfile> _requestProfile(LoginResult session, {Map<String, String>? fields}) async {
     bool active() => !_disposed && _currentSession?.token == session.token &&
       session.expiresAt.isAfter(DateTime.now());
     if (!active()) throw const LoginException('Vui lòng đăng nhập lại để xem hồ sơ.', code: 'session_expired');
     try {
-      final response = await _client.get(Uri.parse('$_baseUrl/profile'),
-        headers: {'Authorization': 'Bearer ${session.token}'}).timeout(const Duration(seconds: 25));
+      final uri = Uri.parse('$_baseUrl/profile');
+      final headers = {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'};
+      final response = await (fields == null ? _client.get(uri, headers: headers)
+        : _client.patch(uri, headers: headers, body: jsonEncode(fields))).timeout(const Duration(seconds: 25));
       if (!active()) throw const LoginException('Phiên đăng nhập đã thay đổi hoặc hết hạn.', code: 'session_expired');
       final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (response.statusCode == 401 || response.statusCode == 403) {
@@ -222,6 +229,17 @@ class LoginService {
       }
       final profile = CustomerProfile.fromJson(Map<String, dynamic>.from(result['data'] as Map));
       if (profile.id != session.customer.id) throw const FormatException('Profile identity mismatch');
+      if (fields != null) {
+        final current = _currentSession!;
+        final customer = current.customer;
+        _currentSession = LoginResult(token: current.token, expiresAt: current.expiresAt,
+          linkedExistingAccount: current.linkedExistingAccount,
+          customer: LoginCustomer(id: customer.id, name: profile.name, email: profile.email,
+            phone: profile.phone, role: profile.role, hasPassword: customer.hasPassword,
+            sessionProvider: customer.sessionProvider,
+            profileCompleted: profile.name.trim().isNotEmpty && profile.phone.trim().isNotEmpty));
+        _events.add(_currentSession);
+      }
       return profile;
     } on LoginException {
       rethrow;

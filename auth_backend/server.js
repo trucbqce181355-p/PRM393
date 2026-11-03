@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC11: Xác thực tài khoản, quản lý phiên và xem hồ sơ/hạng thành viên.
+// UC01–UC12: Xác thực tài khoản, quản lý phiên và xem/chỉnh sửa hồ sơ.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -78,6 +78,10 @@ function createApp(service,
   app.get('/api/auth/profile', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     profile.view(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.patch('/api/auth/profile', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    profile.update(token, req.body).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);

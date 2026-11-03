@@ -1,7 +1,13 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11: Đọc thống kê thành viên từ các đơn chưa bị hủy của đúng email tài khoản.
+// UC11–UC12: Đọc thống kê thành viên và cập nhật họ tên/số điện thoại tài khoản.
 class MongoProfileStore {
   constructor(db) { this.db = db; }
+  async updateProfile(id, { name, phone }) {
+    return this.db.collection('users').findOneAndUpdate({ id, isActive: { $ne: false },
+      identityActive: { $ne: false }, mergedInto: { $exists: false } },
+      { $set: { name, phone, profileUpdatedAt: new Date().toISOString() } },
+      { returnDocument: 'after' });
+  }
   async membership(email) {
     const escaped = email.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const [summary] = await this.db.collection('orders').aggregate([

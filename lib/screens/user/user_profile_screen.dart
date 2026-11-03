@@ -1,9 +1,10 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11: Xem thông tin cá nhân, tổng chi tiêu và hạng thành viên từ backend.
+// UC11–UC12: Xem hồ sơ/hạng thành viên và mở form chỉnh sửa thông tin cá nhân.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
 import '../../services/login_service.dart';
+import 'user_edit_profile_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -18,6 +19,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
   CustomerProfile? _profile;
   String? _error;
   bool _loading = false;
+  bool _editing = false;
   bool _sessionInvalid = false;
 
   @override
@@ -34,11 +36,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_loading && !_sessionInvalid) unawaited(_load());
+    if (state == AppLifecycleState.resumed && !_loading && !_editing && !_sessionInvalid) unawaited(_load());
+  }
+
+  Future<void> _edit() async {
+    final profile = _profile;
+    if (_loading || _editing || _sessionInvalid || profile == null) return;
+    setState(() => _editing = true);
+    final saved = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) =>
+      UserEditProfileScreen(session: widget.session, service: widget.service, profile: profile)));
+    if (!mounted) return;
+    setState(() => _editing = false);
+    if (_sessionInvalid) {
+      Navigator.pop(context);
+      return;
+    }
+    if (saved == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin cá nhân.')));
+      await _load();
+    }
   }
 
   Future<void> _load() async {
-    if (_loading || _sessionInvalid) return;
+    if (_loading || _editing || _sessionInvalid) return;
     setState(() { _loading = true; _profile = null; _error = null; });
     try {
       final profile = await widget.service.fetchProfile(widget.session);
@@ -67,7 +87,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
     final profile = _profile;
     return Scaffold(
       appBar: AppBar(title: const Text('Thông tin cá nhân'), actions: [
-        IconButton(onPressed: _loading || _sessionInvalid ? null : _load,
+        IconButton(onPressed: _loading || _editing || _sessionInvalid ? null : _load,
           tooltip: 'Tải lại hồ sơ', icon: const Icon(Icons.refresh)),
       ]),
       body: _loading ? const Center(child: CircularProgressIndicator())
@@ -88,6 +108,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
               _field('Số điện thoại', profile.phone),
               _field('Loại tài khoản', profile.role == 'admin' ? 'Quản trị viên' : 'Khách hàng'),
             ])),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(onPressed: _editing ? null : _edit,
+              icon: const Icon(Icons.edit_outlined), label: const Text('Chỉnh sửa thông tin cá nhân')),
             if (profile.role != 'admin') ...[
               const SizedBox(height: 16),
               Card(child: Column(children: [
