@@ -1,10 +1,11 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11 và UC13: Xem hồ sơ, hạng thành viên và danh sách địa chỉ giao hàng.
+// UC11–UC15: Xem hồ sơ, địa chỉ và hội thoại hỗ trợ của tài khoản.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
 import '../../services/login_service.dart';
 import 'user_addresses_screen.dart';
+import 'user_support_chat_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -20,7 +21,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
   String? _error;
   bool _loading = false;
   bool _sessionInvalid = false;
-  bool _openingAddresses = false;
+  bool _openingChild = false;
 
   @override
   void initState() {
@@ -40,12 +41,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
   }
 
   Future<void> _openAddresses() async {
-    if (_loading || _openingAddresses || _sessionInvalid) return;
-    setState(() => _openingAddresses = true);
+    if (_loading || _openingChild || _sessionInvalid) return;
+    setState(() => _openingChild = true);
     await Navigator.push(context, MaterialPageRoute(builder: (_) =>
       UserAddressesScreen(session: widget.session, service: widget.service)));
     if (!mounted) return;
-    setState(() => _openingAddresses = false);
+    setState(() => _openingChild = false);
+    if (_sessionInvalid) Navigator.pop(context);
+  }
+
+  Future<void> _openSupport() async {
+    if (_loading || _openingChild || _sessionInvalid) return;
+    setState(() => _openingChild = true);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+      UserSupportChatScreen(session: widget.session, service: widget.service)));
+    if (!mounted) return;
+    setState(() => _openingChild = false);
     if (_sessionInvalid) Navigator.pop(context);
   }
 
@@ -101,8 +112,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
               _field('Loại tài khoản', profile.role == 'admin' ? 'Quản trị viên' : 'Khách hàng'),
             ])),
             const SizedBox(height: 12),
-            OutlinedButton.icon(onPressed: _openingAddresses ? null : _openAddresses,
+            OutlinedButton.icon(onPressed: _openingChild ? null : _openAddresses,
               icon: const Icon(Icons.location_on_outlined), label: const Text('Địa chỉ giao hàng')),
+            OutlinedButton.icon(onPressed: _openingChild ? null : _openSupport,
+              icon: const Icon(Icons.support_agent), label: Text(profile.role == 'admin'
+                ? 'Hội thoại hỗ trợ khách hàng' : 'Gửi yêu cầu/tin nhắn và xem phản hồi')),
             if (profile.role != 'admin') ...[
               const SizedBox(height: 16),
               Card(child: Column(children: [
