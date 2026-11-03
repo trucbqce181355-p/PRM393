@@ -1,8 +1,26 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC15: Lưu tin nhắn và đọc hội thoại hỗ trợ trong MongoDB.
+// UC15–UC16: Lưu hội thoại và quản lý yêu cầu hỗ trợ chưa được xử lý.
 class MongoSupportStore {
   constructor(db) { this.db = db; }
-  async init() { await this.db.collection('chat_messages').createIndex({ conversationId: 1, createdAt: 1 }); }
+  async init() {
+    await this.db.collection('chat_messages').createIndex({ conversationId: 1, createdAt: 1 });
+    await this.db.collection('return_requests').createIndex({ customerEmail: 1, createdAt: -1 });
+  }
+  async requests(email) {
+    return this.db.collection('return_requests').find({ customerEmail: email }, { projection: { _id: 0 } })
+      .sort({ createdAt: -1, id: 1 }).toArray();
+  }
+  async ownsOrder(email, id) {
+    return Boolean(await this.db.collection('orders').findOne({ id, customerEmail: email }, { projection: { _id: 1 } }));
+  }
+  async createRequest(request) { await this.db.collection('return_requests').insertOne({ ...request }); }
+  async changePendingRequest(email, id, fields) {
+    const record = await this.db.collection('return_requests').findOneAndUpdate(
+      { id, customerEmail: email, status: 'pending' },
+      { $set: { ...fields, updatedAt: new Date().toISOString() } }, { returnDocument: 'after' });
+    if (record) delete record._id;
+    return record;
+  }
   async messages(conversationId) {
     return this.db.collection('chat_messages').find({ conversationId }, { projection: { _id: 0 } })
       .sort({ createdAt: 1, id: 1 }).toArray();

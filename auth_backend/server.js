@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC15: Xác thực, hồ sơ, địa chỉ và hội thoại hỗ trợ khách hàng.
+// UC01–UC16: Xác thực, hồ sơ, địa chỉ, hội thoại và yêu cầu hỗ trợ.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -112,6 +112,18 @@ function createApp(service,
   app.post('/api/auth/support/messages', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     support.send(token, req.body).then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
+  app.get('/api/auth/support/requests', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    support.requests(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/support/requests', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    support.createRequest(token, req.body).then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
+  app.patch('/api/auth/support/requests/:id', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    support.changeRequest(token, req.params.id, req.body).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
