@@ -1,16 +1,18 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC08: Hoàn tất thông tin cá nhân sau khi đăng nhập Google lần đầu.
+// UC08, UC10: Hoàn tất hồ sơ Google và cho phép đăng xuất khi hồ sơ chưa hoàn tất.
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
 import '../../services/registration_service.dart';
 
 class GoogleProfileSetupScreen extends StatefulWidget {
   const GoogleProfileSetupScreen({super.key, required this.session, required this.service,
-    required this.onCompleted, required this.onRestart});
+    required this.onCompleted, required this.onRestart, required this.onLogout, this.loggingOut = false});
   final LoginResult session;
   final LoginService service;
   final ValueChanged<LoginResult> onCompleted;
   final VoidCallback onRestart;
+  final VoidCallback onLogout;
+  final bool loggingOut;
   @override
   State<GoogleProfileSetupScreen> createState() => _GoogleProfileSetupScreenState();
 }
@@ -35,7 +37,7 @@ class _GoogleProfileSetupScreenState extends State<GoogleProfileSetupScreen> {
   }
 
   Future<void> _save() async {
-    if (_busy || _restartRequired || !_form.currentState!.validate()) return;
+    if (_busy || widget.loggingOut || _restartRequired || !_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     setState(() { _busy = true; _error = null; });
     try {
@@ -63,7 +65,9 @@ class _GoogleProfileSetupScreenState extends State<GoogleProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) => PopScope(canPop: false, child: Scaffold(
-    appBar: AppBar(title: const Text('Hoàn tất hồ sơ Google'), automaticallyImplyLeading: false),
+    appBar: AppBar(title: const Text('Hoàn tất hồ sơ Google'), automaticallyImplyLeading: false,
+      actions: [IconButton(onPressed: _busy || widget.loggingOut ? null : widget.onLogout,
+        tooltip: 'Đăng xuất', icon: const Icon(Icons.logout))]),
     body: SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24),
       child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440),
         child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min,
@@ -100,11 +104,11 @@ class _GoogleProfileSetupScreenState extends State<GoogleProfileSetupScreen> {
                 validator: (value) => value == _password.text ? null : 'Mật khẩu xác nhận không khớp.'),
             ],
             const SizedBox(height: 24),
-            FilledButton(onPressed: _busy || _restartRequired ? null : _save,
+            FilledButton(onPressed: _busy || widget.loggingOut || _restartRequired ? null : _save,
               child: Text(_busy ? 'Đang lưu...' : 'Hoàn tất hồ sơ')),
             if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             if (_restartRequired)
-              TextButton(onPressed: widget.onRestart, child: const Text('Đăng nhập lại')),
+              TextButton(onPressed: widget.loggingOut ? null : widget.onRestart, child: const Text('Đăng nhập lại')),
           ])),
       ),
     ))),

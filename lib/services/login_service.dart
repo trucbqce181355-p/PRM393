@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC09: Đăng nhập, lưu token, khôi phục và xử lý phiên hết hạn.
+// UC05–UC10: Đăng nhập, quản lý phiên và thu hồi/xóa phiên khi đăng xuất.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -200,6 +200,41 @@ class LoginService {
       rethrow;
     } catch (_) {
       throw const LoginException('Không thể kết nối dịch vụ hồ sơ. Vui lòng thử lại.', code: 'connection_error');
+    }
+  }
+
+  Future<void> logout({Future<void> Function()? clearProviderSession}) async {
+    final session = _currentSession;
+    if (session == null) return;
+    try {
+      final response = await _client.post(Uri.parse('$_baseUrl/logout'),
+        headers: {'Authorization': 'Bearer ${session.token}'})
+        .timeout(const Duration(seconds: 25));
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode != 200 || result['success'] != true || result['data']?['signedOut'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Chưa thu hồi được phiên trên máy chủ. Vui lòng thử lại.',
+          code: result['code'] as String? ?? 'logout_error');
+      }
+    } on LoginException {
+      rethrow;
+    } catch (_) {
+      throw const LoginException('Không thể xác nhận thu hồi phiên với máy chủ. Vui lòng thử đăng xuất lại.',
+        code: 'logout_connection_error');
+    }
+    // An older request must not clear a more recent login.
+    if (_currentSession != null && _currentSession!.token != session.token) return;
+    final cleanupErrors = <String>[];
+    try { await clearProviderSession?.call(); }
+    catch (error) {
+      cleanupErrors.add(error is LoginException ? error.message : 'Chưa xóa được phiên Google local.');
+    }
+    try {
+      await invalidateSession(session.token, message: 'Đã đăng xuất.');
+    } on LoginException catch (error) {
+      cleanupErrors.add(error.message);
+    }
+    if (cleanupErrors.isNotEmpty) {
+      throw LoginException('Phiên trên máy chủ đã được thu hồi. ${cleanupErrors.join(' ')}', code: 'logout_cleanup_error');
     }
   }
 

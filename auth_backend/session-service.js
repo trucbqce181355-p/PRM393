@@ -1,11 +1,19 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC09: Xác thực token để khôi phục phiên, không gia hạn phiên đã hết hạn.
+// UC09–UC10: Khôi phục phiên và thu hồi đúng phiên khi đăng xuất.
 const { digest } = require('./otp-request-service');
 class SessionError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 class SessionService {
   constructor({ store, now = () => new Date() }) { this.store = store; this.now = now; }
+  async logout(token) {
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      throw new SessionError(401, 'invalid_session', 'Phiên đăng nhập không hợp lệ.');
+    }
+    // Idempotent: a retry also succeeds if this token has already been revoked.
+    await this.store.deleteSession(digest(token));
+    return { signedOut: true };
+  }
   async restore(token) {
     if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
       throw new SessionError(401, 'session_expired', 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');

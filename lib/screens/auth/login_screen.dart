@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC09: Đăng nhập, khôi phục phiên và điều hướng khi phiên hết hạn.
+// UC05–UC10: Đăng nhập, khôi phục phiên và xác nhận đăng xuất.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
@@ -25,7 +25,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   late final GoogleAuthService _googleService;
   bool _busy = false;
   bool _googleBusy = false;
-  bool get _isBusy => _busy || _googleBusy;
+  bool _logoutBusy = false;
+  bool get _isBusy => _busy || _googleBusy || _logoutBusy;
   bool _hidePassword = true;
   String? _error;
   String? _info;
@@ -79,6 +80,35 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _restoreError = error.message);
     }
     if (mounted) setState(() => _result = null);
+  }
+
+  Future<void> _confirmLogout() async {
+    final session = LoginService.currentSession;
+    if (_isBusy || _restoring || session == null) return;
+    setState(() => _logoutBusy = true);
+    try {
+      final confirmed = await showDialog<bool>(context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Xác nhận đăng xuất'),
+          content: const Text('Bạn có muốn đăng xuất khỏi tài khoản trên thiết bị này không?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Đăng xuất')),
+          ],
+        ));
+      if (!mounted || confirmed != true || LoginService.currentSession?.token != session.token) return;
+      setState(() { _error = null; _info = null; });
+      await _service.logout(clearProviderSession: _googleService.clearLocalSession);
+      if (!mounted) return;
+      _password.clear();
+      setState(() { _result = LoginService.currentSession; _info = 'Đã đăng xuất.'; });
+    } on LoginException catch (error) {
+      if (!mounted) return;
+      setState(() { _error = error.message; _info = null; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _logoutBusy = false);
+    }
   }
 
   Future<void> _login() async {
@@ -163,10 +193,15 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     if (session != null && session.customer.sessionProvider == 'google' && !session.customer.profileCompleted) {
       return GoogleProfileSetupScreen(session: session, service: _service,
         onCompleted: (result) => setState(() => _result = result),
-        onRestart: () => unawaited(_restartSession()));
+        onRestart: () => unawaited(_restartSession()),
+        onLogout: () => unawaited(_confirmLogout()), loggingOut: _logoutBusy);
     }
     return Scaffold(
-    appBar: AppBar(title: const Text('Đăng nhập')),
+    appBar: AppBar(title: const Text('Đăng nhập'), actions: [
+      if (_result != null)
+        IconButton(onPressed: _isBusy ? null : _confirmLogout,
+          tooltip: 'Đăng xuất', icon: const Icon(Icons.logout)),
+    ]),
     body: SafeArea(child: Center(child: SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440),
@@ -179,6 +214,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           Text('Xin chào ${_result!.customer.name.isNotEmpty ? _result!.customer.name : _result!.customer.email}!'),
           Text(_result!.customer.email),
           Text(_result!.customer.role == 'admin' ? 'Tài khoản quản trị viên' : 'Tài khoản khách hàng'),
+          const SizedBox(height: 16),
+          FilledButton.icon(onPressed: _isBusy ? null : _confirmLogout, icon: const Icon(Icons.logout),
+            label: Text(_logoutBusy ? 'Đang đăng xuất...' : 'Đăng xuất')),
+          if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ]) : AutofillGroup(child: Form(key: _formKey, child: Column(
           mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

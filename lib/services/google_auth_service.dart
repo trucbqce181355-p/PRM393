@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC06–UC09: OAuth Google, liên kết tài khoản và lưu phiên ứng dụng bảo mật.
+// UC06–UC10: OAuth Google, liên kết, lưu phiên và xóa phiên OAuth local.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -165,6 +165,18 @@ class GoogleAuthService {
   void clearPendingLink() {
     _linkGeneration++;
     _linkAccessToken = null; _linkIdentityId = null; _linkEmail = null;
+  }
+
+  Future<void> clearLocalSession() async {
+    cancel();
+    if (!_ready) return;
+    try {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local)
+        .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      throw const LoginException('Phiên ứng dụng đã được thu hồi nhưng chưa xóa được phiên Google local.',
+        code: 'google_signout_error');
+    }
   }
 
   void cancel() {

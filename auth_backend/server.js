@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC09: Xác thực tài khoản, hồ sơ Google và khôi phục phiên đăng nhập.
+// UC01–UC10: Xác thực tài khoản, quản lý phiên và đăng xuất.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -67,6 +67,10 @@ function createApp(service,
   app.get('/api/auth/session', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     sessions.restore(token).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/logout', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    sessions.logout(token).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
