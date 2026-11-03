@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC13: Xem danh sách, thêm, sửa và xác nhận xóa địa chỉ của tài khoản hiện tại.
+// UC13–UC14: Quản lý địa chỉ và chọn địa chỉ giao hàng mặc định.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/delivery_address.dart';
@@ -74,6 +74,18 @@ class _UserAddressesScreenState extends State<UserAddressesScreen> with WidgetsB
     } finally { if (mounted) setState(() => _working = false); }
     if (mounted && changed && !_invalid) await _load();
   }
+  Future<void> _setDefault(DeliveryAddress address) async {
+    if (_working || _loading || _invalid || address.isDefault) return;
+    setState(() { _working = true; _error = null; });
+    bool changed = false;
+    try {
+      await widget.service.selectDefaultAddress(widget.session, address.id);
+      changed = true;
+    } on LoginException catch (error) {
+      if (mounted) setState(() { _error = error.message; _invalid = error.code == 'session_expired'; });
+    } finally { if (mounted) setState(() => _working = false); }
+    if (mounted && changed && !_invalid) await _load();
+  }
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -100,8 +112,12 @@ class _UserAddressesScreenState extends State<UserAddressesScreen> with WidgetsB
           for (final address in _addresses) Card(child: Padding(padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(address.title, style: Theme.of(context).textTheme.titleMedium),
+              if (address.isDefault) const Chip(avatar: Icon(Icons.check_circle_outline), label: Text('Mặc định')),
               SelectableText(address.address), Text(address.phone),
-              Row(children: [
+              Wrap(spacing: 8, children: [
+                if (!address.isDefault)
+                  TextButton.icon(onPressed: _working || _invalid ? null : () => _setDefault(address),
+                    icon: const Icon(Icons.check_circle_outline), label: const Text('Đặt làm mặc định')),
                 TextButton.icon(onPressed: _working || _invalid ? null : () => _edit(address),
                   icon: const Icon(Icons.edit_outlined), label: const Text('Sửa')),
                 TextButton.icon(onPressed: _working || _invalid ? null : () => _delete(address),

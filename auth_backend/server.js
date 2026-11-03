@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC13: Xác thực, hồ sơ và quản lý địa chỉ của tài khoản.
+// UC01–UC14: Xác thực, hồ sơ, quản lý và chọn địa chỉ giao hàng mặc định.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -97,6 +97,10 @@ function createApp(service,
   app.patch('/api/auth/addresses/:id', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     addresses.update(token, req.params.id, req.body).then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.patch('/api/auth/addresses/:id/default', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    addresses.selectDefault(token, req.params.id).then(data => res.json({ success: true, data })).catch(next);
   });
   app.delete('/api/auth/addresses/:id', (req, res, next) => {
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
