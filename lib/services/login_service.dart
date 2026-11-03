@@ -1,11 +1,12 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC12: Đăng nhập, quản lý phiên và xem/chỉnh sửa hồ sơ đã xác thực.
+// UC05–UC13: Quản lý phiên, hồ sơ và gọi API địa chỉ bằng token đã xác thực.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'otp_request_service.dart';
 import 'session_storage.dart';
 import '../models/customer_profile.dart';
+import '../models/delivery_address.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -246,6 +247,52 @@ class LoginService {
     } catch (_) {
       throw const LoginException('Không thể tải thông tin cá nhân. Vui lòng thử lại.', code: 'profile_connection_error');
     }
+  }
+
+  Future<List<DeliveryAddress>> fetchAddresses(LoginResult session) async {
+    final data = await _addressRequest(session, 'GET');
+    return (data['addresses'] as List).map((item) =>
+      DeliveryAddress.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+  }
+
+  Future<void> saveAddress(LoginResult session, {String? id, required String title,
+    required String address, required String phone}) async {
+    await _addressRequest(session, id == null ? 'POST' : 'PATCH', id: id,
+      fields: {'title': title.trim(), 'address': address.trim(), 'phone': phone.trim()});
+  }
+
+  Future<void> deleteAddress(LoginResult session, String id) async {
+    await _addressRequest(session, 'DELETE', id: id);
+  }
+
+  Future<Map<String, dynamic>> _addressRequest(LoginResult session, String method,
+    {String? id, Map<String, String>? fields}) async {
+    bool active() => !_disposed && _currentSession?.token == session.token && session.expiresAt.isAfter(DateTime.now());
+    if (!active()) throw const LoginException('Vui lòng đăng nhập lại.', code: 'session_expired');
+    final uri = Uri.parse('$_baseUrl/addresses${id == null ? '' : '/${Uri.encodeComponent(id)}'}');
+    final headers = {'Authorization': 'Bearer ${session.token}', 'Content-Type': 'application/json'};
+    try {
+      final Future<http.Response> request;
+      switch (method) {
+        case 'POST': request = _client.post(uri, headers: headers, body: jsonEncode(fields)); break;
+        case 'PATCH': request = _client.patch(uri, headers: headers, body: jsonEncode(fields)); break;
+        case 'DELETE': request = _client.delete(uri, headers: headers); break;
+        default: request = _client.get(uri, headers: headers);
+      }
+      final response = await request.timeout(const Duration(seconds: 25));
+      if (!active()) throw const LoginException('Phiên đã hết hạn hoặc thay đổi.', code: 'session_expired');
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await invalidateSession(session.token, message: result['message'] as String?);
+        throw LoginException(result['message'] as String? ?? 'Vui lòng đăng nhập lại.', code: 'session_expired');
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300 || result['success'] != true) {
+        throw LoginException(result['message'] as String? ?? 'Không thể xử lý địa chỉ.',
+          code: result['code'] as String? ?? 'address_error');
+      }
+      return Map<String, dynamic>.from(result['data'] as Map);
+    } on LoginException { rethrow; }
+    catch (_) { throw const LoginException('Không thể kết nối dịch vụ địa chỉ. Vui lòng thử lại.', code: 'address_connection_error'); }
   }
 
   Future<void> logout({Future<void> Function()? clearProviderSession}) async {

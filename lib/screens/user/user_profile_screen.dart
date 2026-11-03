@@ -1,10 +1,11 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC11–UC12: Xem hồ sơ/hạng thành viên và mở form chỉnh sửa thông tin cá nhân.
+// UC11–UC13: Xem/chỉnh sửa hồ sơ và mở danh sách địa chỉ giao hàng.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/customer_profile.dart';
 import '../../services/login_service.dart';
 import 'user_edit_profile_screen.dart';
+import 'user_addresses_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key, required this.session, required this.service});
@@ -55,6 +56,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin cá nhân.')));
       await _load();
     }
+  }
+
+  Future<void> _openAddresses() async {
+    if (_loading || _editing || _sessionInvalid) return;
+    setState(() => _editing = true);
+    await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+      UserAddressesScreen(session: widget.session, service: widget.service)));
+    if (!mounted) return;
+    setState(() => _editing = false);
+    if (_sessionInvalid) Navigator.pop(context);
   }
 
   Future<void> _load() async {
@@ -111,6 +122,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> with WidgetsBindi
             const SizedBox(height: 12),
             OutlinedButton.icon(onPressed: _editing ? null : _edit,
               icon: const Icon(Icons.edit_outlined), label: const Text('Chỉnh sửa thông tin cá nhân')),
+            OutlinedButton.icon(onPressed: _editing ? null : _openAddresses,
+              icon: const Icon(Icons.location_on_outlined), label: const Text('Địa chỉ giao hàng')),
             if (profile.role != 'admin') ...[
               const SizedBox(height: 16),
               Card(child: Column(children: [
