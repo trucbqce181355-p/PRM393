@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC06–UC07: OAuth Google và xác nhận liên kết tài khoản email cùng địa chỉ.
+// UC06–UC09: OAuth Google, liên kết tài khoản và lưu phiên ứng dụng bảo mật.
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -92,9 +92,13 @@ class GoogleAuthService {
           event.event != AuthChangeEvent.signedIn || event.session == null) return;
       exchanging = true;
       final providerSession = event.session!;
-      unawaited(_exchange(providerSession.accessToken).then<void>((data) {
+      unawaited(_exchange(providerSession.accessToken).then<void>((data) async {
         if (_disposed || !identical(_pending, operation) || operation.isCompleted) return;
-        try { operation.complete(_loginService.acceptSession(data)); }
+        try {
+          final session = await _loginService.acceptSession(data,
+            isActive: () => !_disposed && identical(_pending, operation) && !operation.isCompleted);
+          if (!_disposed && identical(_pending, operation) && !operation.isCompleted) operation.complete(session);
+        }
         catch (error, stack) { fail(error, stack); }
       }, onError: (Object error, StackTrace stack) {
         if (!_disposed && identical(_pending, operation) && !operation.isCompleted &&
@@ -144,7 +148,8 @@ class GoogleAuthService {
         clearPendingLink();
         throw const LoginException('Phiên Google đã thay đổi. Vui lòng đăng nhập lại.', code: 'google_session_changed');
       }
-      final result = _loginService.acceptSession(data);
+      final result = await _loginService.acceptSession(data,
+        isActive: () => !_disposed && generation == _linkGeneration && _linkAccessToken == token);
       clearPendingLink();
       return result;
     } on LoginException catch (error) {

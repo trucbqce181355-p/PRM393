@@ -1,8 +1,10 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC08: Đăng nhập email/Google và cập nhật phiên sau khi hoàn tất hồ sơ.
+// UC05–UC09: Đăng nhập, lưu token, khôi phục và xử lý phiên hết hạn.
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'otp_request_service.dart';
+import 'session_storage.dart';
 
 class LoginException implements Exception {
   const LoginException(this.message, {required this.code});
@@ -33,20 +35,55 @@ class LoginResult {
 }
 
 class LoginService {
-  LoginService({http.Client? client, String? baseUrl})
+  LoginService({http.Client? client, String? baseUrl, SessionStorage? storage})
       : _client = client ?? http.Client(), _ownsClient = client == null,
+        _storage = storage ?? SessionStorage(),
         _baseUrl = baseUrl ?? OtpRequestService.defaultBaseUrl;
   final http.Client _client;
   final bool _ownsClient;
   final String _baseUrl;
+  final SessionStorage _storage;
+  bool _disposed = false;
   static LoginResult? _currentSession;
   static LoginResult? get currentSession => _currentSession;
+  static final _events = StreamController<LoginResult?>.broadcast();
+  static Stream<LoginResult?> get sessionEvents => _events.stream;
+  static Timer? _expiryTimer;
+  static int _revision = 0;
+  static Future<void> _storageQueue = Future<void>.value();
+  static String? sessionMessage;
 
-  LoginResult acceptSession(Map<String, dynamic> data) {
+  Future<T> _serializeStorage<T>(Future<T> Function() operation) {
+    final next = _storageQueue.then((_) => operation());
+    _storageQueue = next.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return next;
+  }
+
+  Future<void> invalidateSession(String token, {String? message}) async {
+    if (_currentSession != null && _currentSession!.token != token) return;
+    _revision++;
+    _expiryTimer?.cancel();
+    _currentSession = null;
+    sessionMessage = message ?? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    _events.add(null);
+    try {
+      await _serializeStorage(() async {
+        if (await _storage.read() == token) await _storage.delete();
+      });
+    } catch (_) {
+      sessionMessage = 'Phiên không còn hợp lệ nhưng chưa xóa được token khỏi kho bảo mật. Vui lòng thử lại.';
+      throw LoginException(sessionMessage!, code: 'session_storage_error');
+    }
+  }
+
+  Future<LoginResult> acceptSession(Map<String, dynamic> data, {bool Function()? isActive}) async {
+    final revision = _revision;
     final customer = Map<String, dynamic>.from(data['customer'] as Map);
     final token = data['token'] as String;
     final expiresAt = DateTime.parse(data['expiresAt'] as String);
-    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) throw const FormatException('Invalid login response');
+    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token) || !expiresAt.isAfter(DateTime.now())) {
+      throw const LoginException('Phiên đăng nhập không hợp lệ hoặc đã hết hạn.', code: 'session_expired');
+    }
     final session = LoginResult(token: token, expiresAt: expiresAt,
       linkedExistingAccount: data['linkedExistingAccount'] == true,
       customer: LoginCustomer(id: customer['id'] as String, name: customer['name'] as String,
@@ -55,8 +92,63 @@ class LoginService {
         profileCompleted: customer['profileCompleted'] as bool? ?? true,
         hasPassword: customer['hasPassword'] as bool? ?? true,
         sessionProvider: customer['sessionProvider'] as String? ?? 'password'));
-    _currentSession = session;
+    bool active() => !_disposed && revision == _revision && (isActive?.call() ?? true);
+    await _serializeStorage(() async {
+      if (!active()) throw const LoginException('Phiên đăng nhập đã thay đổi.', code: 'session_cancelled');
+      try { await _storage.write(token); }
+      catch (_) { throw const LoginException('Không lưu được phiên vào kho bảo mật. Vui lòng thử lại.', code: 'session_storage_error'); }
+      if (!active() || !expiresAt.isAfter(DateTime.now())) {
+        await _storage.delete();
+        throw const LoginException('Phiên đăng nhập đã thay đổi hoặc hết hạn.', code: 'session_cancelled');
+      }
+      _currentSession = session;
+      sessionMessage = null;
+      _expiryTimer?.cancel();
+      _expiryTimer = Timer(expiresAt.difference(DateTime.now()), () {
+        unawaited(invalidateSession(token).catchError((Object error) {
+          _events.add(null);
+        }));
+      });
+      _events.add(session);
+    });
     return session;
+  }
+
+  Future<LoginResult?> restoreSession() async {
+    final revision = _revision;
+    String? token;
+    try { token = await _serializeStorage(() => _storage.read()); }
+    catch (_) { throw const LoginException('Không đọc được kho lưu phiên bảo mật. Vui lòng thử lại.', code: 'session_storage_error'); }
+    if (_disposed || revision != _revision) return _currentSession;
+    if (token == null) return null;
+    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
+      await invalidateSession(token);
+      return null;
+    }
+    try {
+      final response = await _client.get(Uri.parse('$_baseUrl/session'),
+        headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 25));
+      if (_disposed || revision != _revision) return _currentSession;
+      final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await invalidateSession(token, message: result['message'] as String?);
+        return null;
+      }
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw const LoginException('Chưa thể xác thực phiên với máy chủ. Vui lòng thử lại.', code: 'session_restore_error');
+      }
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+      if (data['token'] != token) throw const FormatException('Session token mismatch');
+      return await acceptSession(data, isActive: () => revision == _revision);
+    } on LoginException catch (error) {
+      if (error.code == 'session_expired') {
+        await invalidateSession(token);
+        return null;
+      }
+      rethrow;
+    } catch (_) {
+      throw const LoginException('Không thể kết nối để khôi phục phiên. Vui lòng thử lại.', code: 'session_restore_error');
+    }
   }
 
   Future<LoginResult> login(String email, String password) async {
@@ -71,7 +163,7 @@ class LoginService {
           code: result['code'] as String? ?? 'server_error');
       }
       final data = Map<String, dynamic>.from(result['data'] as Map);
-      return acceptSession(data);
+      return await acceptSession(data);
     } on LoginException {
       rethrow;
     } catch (_) {
@@ -82,6 +174,7 @@ class LoginService {
     required String name, required String phone, String? password,
   }) async {
     if (!identical(_currentSession, session) || !session.expiresAt.isAfter(DateTime.now())) {
+      if (identical(_currentSession, session)) await invalidateSession(session.token);
       throw const LoginException('Phiên đăng nhập đã thay đổi hoặc hết hạn. Vui lòng đăng nhập lại.', code: 'session_expired');
     }
     try {
@@ -91,6 +184,9 @@ class LoginService {
           if (password != null) 'password': password})).timeout(const Duration(seconds: 25));
       final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (response.statusCode != 200 || result['success'] != true) {
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          await invalidateSession(session.token, message: result['message'] as String?);
+        }
         throw LoginException(result['message'] as String? ?? 'Không thể hoàn tất hồ sơ.',
           code: result['code'] as String? ?? 'profile_error');
       }
@@ -99,7 +195,7 @@ class LoginService {
       }
       final data = Map<String, dynamic>.from(result['data'] as Map);
       data['linkedExistingAccount'] = session.linkedExistingAccount;
-      return acceptSession(data);
+      return await acceptSession(data, isActive: () => identical(_currentSession, session));
     } on LoginException {
       rethrow;
     } catch (_) {
@@ -107,5 +203,5 @@ class LoginService {
     }
   }
 
-  void dispose() { if (_ownsClient) _client.close(); }
+  void dispose() { _disposed = true; if (_ownsClient) _client.close(); }
 }

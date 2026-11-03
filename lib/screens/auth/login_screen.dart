@@ -1,5 +1,6 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC05–UC08: Đăng nhập, liên kết Google và điều hướng hoàn tất hồ sơ lần đầu.
+// UC05–UC09: Đăng nhập, khôi phục phiên và điều hướng khi phiên hết hạn.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/login_service.dart';
 import '../../services/google_auth_service.dart';
@@ -16,7 +17,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -29,12 +30,55 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   String? _info;
   LoginResult? _result;
+  StreamSubscription<LoginResult?>? _sessionSubscription;
+  bool _restoring = true;
+  String? _restoreError;
 
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? LoginService();
     _googleService = widget.googleService ?? GoogleAuthService(loginService: _service);
+    WidgetsBinding.instance.addObserver(this);
+    _sessionSubscription = LoginService.sessionEvents.listen((session) {
+      if (!mounted) return;
+      setState(() {
+        _result = session;
+        if (session == null) { _info = LoginService.sessionMessage; _password.clear(); }
+      });
+    });
+    unawaited(_restoreSession());
+  }
+
+  Future<void> _restoreSession() async {
+    setState(() { _restoring = true; _restoreError = null; });
+    try {
+      final session = await _service.restoreSession();
+      if (!mounted) return;
+      setState(() { _result = session; _info = LoginService.sessionMessage; });
+    } on LoginException catch (error) {
+      if (mounted) setState(() => _restoreError = error.message);
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_restoring && !_isBusy && LoginService.currentSession != null) {
+      unawaited(_restoreSession());
+    }
+  }
+
+  Future<void> _restartSession() async {
+    final session = LoginService.currentSession;
+    try {
+      if (session != null) await _service.invalidateSession(session.token,
+        message: 'Vui lòng đăng nhập lại để cập nhật phiên.');
+    } on LoginException catch (error) {
+      if (mounted) setState(() => _restoreError = error.message);
+    }
+    if (mounted) setState(() => _result = null);
   }
 
   Future<void> _login() async {
@@ -96,6 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_sessionSubscription?.cancel());
     _email.dispose(); _password.dispose();
     if (widget.googleService == null) _googleService.dispose();
     if (widget.service == null) _service.dispose();
@@ -104,11 +150,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_restoring || _restoreError != null) {
+      return Scaffold(appBar: AppBar(title: const Text('Khôi phục phiên')),
+        body: Center(child: Padding(padding: const EdgeInsets.all(24),
+          child: _restoring ? const CircularProgressIndicator() : Column(
+            mainAxisSize: MainAxisSize.min, children: [
+              Text(_restoreError!), const SizedBox(height: 16),
+              FilledButton(onPressed: _restoreSession, child: const Text('Thử khôi phục lại')),
+            ]))));
+    }
     final session = _result;
     if (session != null && session.customer.sessionProvider == 'google' && !session.customer.profileCompleted) {
       return GoogleProfileSetupScreen(session: session, service: _service,
         onCompleted: (result) => setState(() => _result = result),
-        onRestart: () => setState(() { _result = null; _error = null; _info = null; }));
+        onRestart: () => unawaited(_restartSession()));
     }
     return Scaffold(
     appBar: AppBar(title: const Text('Đăng nhập')),

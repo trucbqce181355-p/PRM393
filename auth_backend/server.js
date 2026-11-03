@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC08: OTP, đăng ký, đăng nhập, liên kết Google và hoàn tất hồ sơ.
+// UC01–UC09: Xác thực tài khoản, hồ sơ Google và khôi phục phiên đăng nhập.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -19,6 +19,8 @@ const { MongoGoogleAuthStore } = require('./google-auth-store');
 const { verifyGoogleToken } = require('./google-token-verifier');
 const { GoogleProfileService } = require('./google-profile-service');
 const { MongoGoogleProfileStore } = require('./google-profile-store');
+const { SessionService } = require('./session-service');
+const { MongoSessionStore } = require('./session-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
@@ -26,7 +28,8 @@ function createApp(service,
   passwordReset = new PasswordResetService({ store: new MongoPasswordResetStore(service.store.db), now: service.now }),
   login = new LoginService({ store: new MongoLoginStore(service.store.db), now: service.now }),
   google = new GoogleAuthService({ store: new MongoGoogleAuthStore(service.store.db), verifyGoogle: verifyGoogleToken, now: service.now }),
-  googleProfile = new GoogleProfileService({ store: new MongoGoogleProfileStore(service.store.db), now: service.now })) {
+  googleProfile = new GoogleProfileService({ store: new MongoGoogleProfileStore(service.store.db), now: service.now }),
+  sessions = new SessionService({ store: new MongoSessionStore(service.store.db), now: service.now })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
@@ -60,6 +63,10 @@ function createApp(service,
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
     googleProfile.complete(token, req.body ?? {})
       .then(data => res.json({ success: true, data })).catch(next);
+  });
+  app.get('/api/auth/session', (req, res, next) => {
+    const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1] ?? '';
+    sessions.restore(token).then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
