@@ -10,9 +10,13 @@ class MongoOtpRequestStore {
     }
   }
   async emailExists(email) {
-    return Boolean(await this.db.collection('users').findOne({ $or: [
-      { emailNormalized: email }, { email },
-    ] }));
+    return Boolean(await this.findAccount(email));
+  }
+  async findAccount(email) {
+    const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.db.collection('users').findOne({ $or: [
+      { emailNormalized: email }, { email: { $regex: `^${escapedEmail}$`, $options: 'i' } },
+    ] });
   }
   async limit(key, maximum, now) {
     const bucket = `${key}:${Math.floor(now.getTime() / 3600000)}`;
@@ -38,7 +42,8 @@ class MongoOtpRequestStore {
   async putChallenge(challenge) { await this.db.collection('auth_challenges').insertOne(challenge); }
   async activateChallenge(id, email) {
     const challenges = this.db.collection('auth_challenges');
-    await challenges.updateMany({ email, _id: { $ne: id }, state: 'sent' }, { $set: { state: 'expired' } });
+    await challenges.updateMany({ email, _id: { $ne: id }, state: { $in: ['sent', 'verified'] } },
+      { $set: { state: 'expired' } });
     await challenges.updateOne({ _id: id }, { $set: { state: 'sent' } });
   }
   async removeChallenge(id) { await this.db.collection('auth_challenges').deleteOne({ _id: id }); }

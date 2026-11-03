@@ -23,10 +23,12 @@ class OtpVerificationResult {
     required this.email,
     required this.verificationToken,
     required this.expiresIn,
+    this.purpose = 'registration',
   });
   final String email;
   final String verificationToken;
   final int expiresIn;
+  final String purpose;
 }
 
 class OtpVerificationService {
@@ -64,6 +66,7 @@ class OtpVerificationService {
         email: data['email'] as String,
         verificationToken: data['verificationToken'] as String,
         expiresIn: data['expiresIn'] as int,
+        purpose: data['purpose'] as String? ?? 'registration',
       );
     } on OtpVerificationException {
       rethrow;

@@ -21,6 +21,7 @@ class OtpEmailChallenge {
     required this.resendAfter,
     this.expiresAt,
     this.maxAttempts = 5,
+    this.purpose = 'registration',
   });
   final String id;
   final String email;
@@ -28,6 +29,7 @@ class OtpEmailChallenge {
   final int resendAfter;
   final DateTime? expiresAt;
   final int maxAttempts;
+  final String purpose;
 }
 
 class OtpRequestService {
@@ -47,13 +49,14 @@ class OtpRequestService {
         : 'http://127.0.0.1:5001/api/auth';
   }
 
-  Future<OtpEmailChallenge> request(String email) async {
+  Future<OtpEmailChallenge> request(String email, {String purpose = 'registration'}) async {
     try {
       final response = await _client
           .post(
             Uri.parse('$_baseUrl/otp/request'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email.trim().toLowerCase()}),
+            body: jsonEncode({'email': email.trim().toLowerCase(),
+              if (purpose != 'registration') 'purpose': purpose}),
           )
           .timeout(const Duration(seconds: 25));
       final result =
@@ -72,6 +75,7 @@ class OtpRequestService {
         resendAfter: data['resendAfter'] as int,
         expiresAt: DateTime.tryParse(data['expiresAt'] as String? ?? ''),
         maxAttempts: data['maxAttempts'] as int? ?? 5,
+        purpose: data['purpose'] as String? ?? purpose,
       );
     } on OtpRequestException {
       rethrow;

@@ -1,9 +1,8 @@
 // Author: Chih An (GitHub: ChangChinAn)
 // UC03: Tạo tài khoản bằng email đã xác minh, mật khẩu và thông tin cá nhân.
-const { randomBytes, randomUUID, scrypt: scryptCallback } = require('node:crypto');
-const { promisify } = require('node:util');
+const { randomUUID } = require('node:crypto');
 const { digest } = require('./otp-request-service');
-const scrypt = promisify(scryptCallback);
+const { validatePassword, hashPassword } = require('./password-security');
 
 class RegistrationError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -14,13 +13,7 @@ function validateRegistration(name, phone, password) {
       typeof phone !== 'string' || !/^0\d{9}$/.test(phone.trim())) {
     throw new RegistrationError(400, 'invalid_profile', 'Họ tên hoặc số điện thoại không hợp lệ.');
   }
-  if (typeof password !== 'string' || password.length < 12 || password.length > 256 ||
-      password !== password.trim() || /[^\x20-\x7e]/.test(password) ||
-      !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) ||
-      !/[^A-Za-z0-9 ]/.test(password)) {
-    throw new RegistrationError(400, 'invalid_password',
-      'Mật khẩu phải từ 12 đến 256 ký tự không dấu, có chữ hoa, chữ thường, số và ký tự đặc biệt; không có khoảng trắng đầu/cuối.');
-  }
+  validatePassword(password);
 }
 
 class RegistrationService {
@@ -37,12 +30,10 @@ class RegistrationService {
       throw new RegistrationError(401, 'verification_expired', 'Xác minh email đã hết hạn hoặc đã được sử dụng. Vui lòng xác minh lại.');
     }
     try {
-      const salt = randomBytes(16).toString('hex');
-      const key = await scrypt(password, salt, 64);
       const user = await this.store.createUser({
         id: `c_${randomUUID()}`, email: challenge.email, emailNormalized: challenge.email,
         emailVerified: true, name: name.trim(), phone: phone.trim(),
-        password_hash: `scrypt$${salt}$${key.toString('hex')}`,
+        password_hash: await hashPassword(password),
         role: 'customer', isActive: true, identityActive: true,
         totalSpent: 0, totalOrders: 0, memberTier: 'Đồng',
         created_at: this.now().toISOString(),

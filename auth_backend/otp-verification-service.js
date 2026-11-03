@@ -48,7 +48,7 @@ class OtpVerificationService {
     const verified = await this.store.verifyOtp(challengeId, hash, digest(verificationToken), verifiedAt,
       new Date(verifiedAt.getTime() + expiresIn * 1000));
     if (!verified) return this.unavailable(challengeId, this.now());
-    return { verified: true, email: challenge.email, verificationToken, expiresIn,
+    return { verified: true, email: challenge.email, purpose: challenge.purpose ?? 'registration', verificationToken, expiresIn,
       remainingAttempts: remaining };
   }
 }

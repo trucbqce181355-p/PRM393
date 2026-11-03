@@ -16,14 +16,24 @@ class OtpRequestService {
     this.ttlSeconds = ttlSeconds; this.resendSeconds = resendSeconds;
   }
 
-  async request(emailValue, ip = 'unknown') {
+  async request(emailValue, ip = 'unknown', purpose = 'registration') {
+    if (!['registration', 'password_reset'].includes(purpose)) {
+      throw new OtpRequestError(400, 'Mục đích gửi OTP không hợp lệ.');
+    }
     if (typeof emailValue !== 'string') throw new OtpRequestError(400, 'Email không hợp lệ.');
     const email = emailValue.trim().toLowerCase();
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new OtpRequestError(400, 'Vui lòng nhập địa chỉ email hợp lệ.');
     }
-    if (await this.store.emailExists(email)) {
+    if (purpose === 'registration' && await this.store.emailExists(email)) {
       throw new OtpRequestError(409, 'Email đã được đăng ký.');
+    }
+    let account;
+    if (purpose === 'password_reset') {
+      account = await this.store.findAccount(email);
+      if (!account) throw new OtpRequestError(404, 'Không tìm thấy tài khoản với email này.');
+      if (account.isActive === false) throw new OtpRequestError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ.');
+      if (!account.id) throw new OtpRequestError(409, 'Tài khoản chưa có định danh hợp lệ. Vui lòng liên hệ hỗ trợ.');
     }
     const now = this.now();
     await this.store.limit(`email:${digest(email)}`, 10, now);
@@ -31,18 +41,19 @@ class OtpRequestService {
     await this.store.claimSendSlot(email, now, this.resendSeconds);
     const challengeId = randomBytes(32).toString('base64url');
     const otp = String(randomInt(100000, 1000000));
-    await this.store.putChallenge({ _id: challengeId, email, purpose: 'registration',
+    await this.store.putChallenge({ _id: challengeId, email, purpose,
+      ...(account ? { userId: account.id } : {}),
       otpHash: digest(`${challengeId}:${otp}`), state: 'sending', attempts: 0,
       expiresAt: new Date(now.getTime() + this.ttlSeconds * 1000) });
     try {
-      await this.sendEmail(email, otp, this.ttlSeconds);
+      await this.sendEmail(email, otp, this.ttlSeconds, purpose);
       await this.store.activateChallenge(challengeId, email);
     } catch (_) {
       await this.store.removeChallenge(challengeId);
       throw new OtpRequestError(503, 'Không thể gửi email OTP. Vui lòng thử lại sau.');
     }
     // The OTP itself is delivered only by email, never in the response or logs.
-    return { challengeId, email, expiresIn: this.ttlSeconds, resendAfter: this.resendSeconds,
+    return { challengeId, email, purpose, expiresIn: this.ttlSeconds, resendAfter: this.resendSeconds,
       expiresAt: new Date(now.getTime() + this.ttlSeconds * 1000).toISOString(),
       maxAttempts: MAX_OTP_ATTEMPTS };
   }

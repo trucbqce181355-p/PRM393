@@ -95,7 +95,8 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Xác minh OTP')),
+    appBar: AppBar(title: Text(widget.challenge.purpose == 'password_reset'
+      ? 'Xác minh đặt lại mật khẩu' : 'Xác minh OTP')),
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(

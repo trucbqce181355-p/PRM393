@@ -9,6 +9,7 @@ import '../../services/otp_verification_service.dart';
 import '../../services/registration_service.dart';
 import 'otp_screen.dart';
 import 'profile_setup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.service, this.clock});
@@ -216,6 +217,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   if (_verified != null && _verified!.email == _normalizedEmail)
                     TextButton(onPressed: _createdCustomer == null ? _openProfile : null,
                       child: Text(_createdCustomer == null ? 'Hoàn tất thông tin tài khoản' : 'Tài khoản đã được tạo')),
+                  TextButton(onPressed: _sending ? null : () async {
+                    final reset = await Navigator.push<bool>(context,
+                      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
+                    if (mounted && reset == true) setState(() {
+                      _error = false; _message = 'Mật khẩu đã được đặt lại thành công.';
+                    });
+                  }, child: const Text('Quên mật khẩu?')),
                 ],
               ),
             ),

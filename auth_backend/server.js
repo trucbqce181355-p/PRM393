@@ -1,5 +1,5 @@
 // Author: Chih An (GitHub: ChangChinAn)
-// UC01–UC03: Gửi, xác minh OTP email và tạo tài khoản sau xác minh.
+// UC01–UC04: OTP email, đăng ký tài khoản và quên/đặt lại mật khẩu.
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -10,16 +10,19 @@ const { MongoOtpRequestStore } = require('./otp-request-store');
 const { OtpVerificationService } = require('./otp-verification-service');
 const { RegistrationService } = require('./registration-service');
 const { MongoRegistrationStore } = require('./registration-store');
+const { PasswordResetService } = require('./password-reset-service');
+const { MongoPasswordResetStore } = require('./password-reset-store');
 
 function createApp(service,
   verification = new OtpVerificationService({ store: service.store, now: service.now }),
-  registration = new RegistrationService({ store: new MongoRegistrationStore(service.store.db), now: service.now })) {
+  registration = new RegistrationService({ store: new MongoRegistrationStore(service.store.db), now: service.now }),
+  passwordReset = new PasswordResetService({ store: new MongoPasswordResetStore(service.store.db), now: service.now })) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2kb' }));
   app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   app.post('/api/auth/otp/request', (req, res, next) => {
-    service.request(req.body?.email, req.ip)
+    service.request(req.body?.email, req.ip, req.body?.purpose)
       .then(data => res.json({ success: true, data })).catch(next);
   });
   app.post('/api/auth/otp/verify', (req, res, next) => {
@@ -29,6 +32,10 @@ function createApp(service,
   app.post('/api/auth/register', (req, res, next) => {
     registration.register(req.body)
       .then(data => res.status(201).json({ success: true, data })).catch(next);
+  });
+  app.post('/api/auth/password/reset', (req, res, next) => {
+    passwordReset.reset(req.body)
+      .then(data => res.json({ success: true, data })).catch(next);
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
@@ -53,11 +60,11 @@ async function main() {
   const transport = nodemailer.createTransport({ service: 'gmail',
     auth: { user: process.env.SMTP_USERNAME, pass: process.env.SMTP_PASSWORD },
     connectionTimeout: 10000, socketTimeout: 15000 });
-  const service = new OtpRequestService({ store, sendEmail: async (email, otp, ttl) => {
+  const service = new OtpRequestService({ store, sendEmail: async (email, otp, ttl, purpose) => {
     if (!process.env.SMTP_USERNAME || !process.env.SMTP_PASSWORD) throw new Error('SMTP is not configured');
     await transport.sendMail({ from: { name: 'Fruitopia OTP', address: process.env.SMTP_USERNAME },
-      to: email, subject: 'Mã xác minh email Fruitopia',
-      text: `Mã OTP của bạn: ${otp}. Mã có hiệu lực ${Math.ceil(ttl / 60)} phút. Không chia sẻ mã này.` });
+      to: email, subject: purpose === 'password_reset' ? 'Mã đặt lại mật khẩu Fruitopia' : 'Mã xác minh email Fruitopia',
+      text: `Mã OTP ${purpose === 'password_reset' ? 'đặt lại mật khẩu' : 'xác minh email'} của bạn: ${otp}. Mã có hiệu lực ${Math.ceil(ttl / 60)} phút. Không chia sẻ mã này.` });
   } });
   const registration = new RegistrationService({ store: registrationStore });
   const server = createApp(service, undefined, registration).listen(Number(process.env.PORT || 5001), process.env.HOST || '127.0.0.1', () => {
