@@ -5,6 +5,7 @@ import '../../services/data_service.dart';
 import '../../services/order_notification_service.dart';
 import '../../utils/format_helper.dart';
 import 'review_screen.dart';
+import 'user_order_details_screen.dart';
 import 'user_home_screen.dart';
 
 class UserOrdersScreen extends StatefulWidget {
@@ -50,6 +51,10 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
         'createdAt': o.createdAt.toIso8601String(),
         'total': FormatHelper.formatPrice(o.totalAmount),
         'totalAmount': o.totalAmount,
+        'customerName': o.customerName,
+        'customerEmail': o.customerEmail,
+        'phone': o.customerPhone,
+        'address': o.address,
       });
     }
 
@@ -237,7 +242,17 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 1,
-          child: Padding(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserOrderDetailsScreen(order: order),
+                ),
+              );
+            },
+            child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,6 +361,7 @@ class _UserOrdersScreenState extends State<UserOrdersScreen> {
                   )
                 ]
               ],
+            ),
             ),
           ),
         );
