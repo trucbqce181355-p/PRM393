@@ -1458,6 +1458,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
+  // =======================================================
+  // CHỨC NĂNG: BANNER KHUYẾN MÃI & TRÁI CÂY THEO MÙA (CAROUSEL)
+  // =======================================================
   Widget _buildSeasonalBannerSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
