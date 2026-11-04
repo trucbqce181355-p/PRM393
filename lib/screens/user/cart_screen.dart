@@ -195,6 +195,7 @@ class _CartScreenState extends State<CartScreen> {
                                       icon: const Icon(Icons.add_circle_outline, color: Colors.green),
                                       onPressed: () => _updateQuantity(item, 1),
                                     ),
+                                    // [Quản lý giỏ hàng - Xóa sản phẩm khỏi giỏ hàng] Nút xóa sản phẩm khỏi giỏ
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                                       onPressed: () {

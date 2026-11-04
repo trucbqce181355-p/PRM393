@@ -67,10 +67,14 @@ class Cart {
     }
   }
 
+  /// [Quản lý giỏ hàng - Xóa sản phẩm khỏi giỏ hàng]
+  /// Xóa sản phẩm được chỉ định ra khỏi giỏ hàng theo Product ID.
   static void removeItem(String productId) {
     _items.removeWhere((item) => item.product.id == productId);
   }
 
+  /// [Quản lý giỏ hàng - Xóa sản phẩm khỏi giỏ hàng]
+  /// Dọn sạch toàn bộ sản phẩm và đưa giỏ hàng về trạng thái rỗng.
   static void clear() {
     _items.clear();
   }
