@@ -478,9 +478,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Search Bar
-  // =======================================================
-  // CH?C NANG: T�M KI?M S?N PH?M REALTIME & QUICK TAGS
-  // =======================================================
               // Search Bar and Sort Dropdown
               Row(
                 children: [
@@ -1461,9 +1458,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // =======================================================
-  // CHỨC NĂNG: BANNER KHUYẾN MÃI & TRÁI CÂY THEO MÙA (CAROUSEL)
-  // =======================================================
   Widget _buildSeasonalBannerSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2484,5 +2478,3 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 }
-
-
