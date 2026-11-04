@@ -478,6 +478,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Search Bar
+  // =======================================================
+  // CH?C NANG: TÌM KI?M S?N PH?M REALTIME & QUICK TAGS
+  // =======================================================
               // Search Bar and Sort Dropdown
               Row(
                 children: [
@@ -2481,4 +2484,5 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 }
+
 
