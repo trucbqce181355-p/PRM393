@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/product.dart';
 import '../../models/category.dart';
 import '../../services/data_service.dart';
+import '../../utils/app_image_helper.dart';
 
 class AdminAddProductScreen extends StatefulWidget {
   final Product? product; // Nếu null => Thêm mới, nếu có => Chỉnh sửa
@@ -229,6 +230,7 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
               const Text('Hình ảnh sản phẩm (Tùy chọn)', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 80,
@@ -237,41 +239,62 @@ class _AdminAddProductScreenState extends State<AdminAddProductScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.grey.shade300),
-                      image: _imageUrl.isNotEmpty
-                          ? DecorationImage(
-                              image: _imageUrl.startsWith('http')
-                                  ? NetworkImage(_imageUrl) as ImageProvider
-                                  : FileImage(File(_imageUrl)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
                     ),
-                    child: _imageUrl.isEmpty
-                        ? const Icon(Icons.image, color: Colors.grey)
-                        : null,
-                  ),
-                  const SizedBox(width: 16),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Chọn hình ảnh từ máy'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade50,
-                      foregroundColor: Colors.green.shade800,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(color: Colors.green.shade200),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AppImageHelper.buildImage(
+                        imageUrl: _imageUrl,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorWidget: const Icon(Icons.image, color: Colors.grey),
                       ),
                     ),
-                    onPressed: () async {
-                      final ImagePicker picker = ImagePicker();
-                      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-                      if (image != null) {
-                        setState(() {
-                          _imageUrl = image.path;
-                        });
-                      }
-                    },
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Chọn hình ảnh từ máy'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade50,
+                            foregroundColor: Colors.green.shade800,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(color: Colors.green.shade200),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final ImagePicker picker = ImagePicker();
+                            final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                            if (image != null) {
+                              setState(() {
+                                _imageUrl = image.path;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: _imageUrl.startsWith('http') ? _imageUrl : null,
+                          decoration: InputDecoration(
+                            hintText: 'Hoặc dán URL ảnh (https://...)',
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                          onChanged: (val) {
+                            setState(() {
+                              _imageUrl = val.trim();
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
 import '../../services/data_service.dart';
 import '../../models/review.dart';
@@ -8,12 +10,14 @@ class ReviewScreen extends StatefulWidget {
   final String orderId;
   final String? productId;
   final String? productName;
+  final Review? existingReview;
 
   const ReviewScreen({
     super.key,
     required this.orderId,
     this.productId,
     this.productName,
+    this.existingReview,
   });
 
   @override
@@ -23,8 +27,10 @@ class ReviewScreen extends StatefulWidget {
 class _ReviewScreenState extends State<ReviewScreen> {
   int _rating = 5;
   final TextEditingController _reviewController = TextEditingController();
-  bool _hasImage = false;
+  File? _imageFile;
+  String? _existingImageUrl;
   bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
 
   String? _selectedProductId;
   String? _selectedProductName;
@@ -32,7 +38,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   void initState() {
     super.initState();
-    _initSelectedProduct();
+    if (widget.existingReview != null) {
+      _rating = widget.existingReview!.rating;
+      _reviewController.text = widget.existingReview!.comment;
+      _selectedProductId = widget.existingReview!.productId;
+      _selectedProductName = widget.existingReview!.productName;
+      _existingImageUrl = widget.existingReview!.imageUrl;
+      if (_existingImageUrl != null && File(_existingImageUrl!).existsSync()) {
+        _imageFile = File(_existingImageUrl!);
+      }
+    } else {
+      _initSelectedProduct();
+    }
   }
 
   void _initSelectedProduct() {
@@ -69,6 +86,58 @@ class _ReviewScreenState extends State<ReviewScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (pickedFile != null) {
+        setState(() {
+          _imageFile = File(pickedFile.path);
+          _existingImageUrl = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Không thể chọn ảnh: $e');
+      }
+    }
+  }
+
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title: const Text('Chọn ảnh từ thư viện'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('Chụp ảnh từ máy ảnh'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _submitReview() async {
     if (_rating == 0) {
       SnackbarHelper.showError(context, 'Vui lòng chọn số sao đánh giá');
@@ -88,39 +157,62 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final resolvedProductName = _selectedProductName ??
         (DataService.products.isNotEmpty ? DataService.products.first.name : 'Táo Envy New Zealand');
 
-    final currentUserName = AuthService.userName ?? 'Huế Trân Võ';
+    final currentUserName = AuthService.userName ?? 'Khách hàng';
+    final imagePath = _imageFile?.path ?? _existingImageUrl;
 
-    final newReview = Review(
-      id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
-      productId: resolvedProductId,
-      productName: resolvedProductName,
-      userName: currentUserName,
-      userEmail: AuthService.userEmail,
-      rating: _rating,
-      comment: comment,
-      createdAt: DateTime.now(),
-      hasImage: _hasImage,
-      orderId: widget.orderId,
-    );
+    try {
+      if (widget.existingReview != null) {
+        await DataService.updateReview(
+          widget.existingReview!.id,
+          rating: _rating,
+          comment: comment,
+          imageUrl: imagePath,
+          hasImage: imagePath != null && imagePath.isNotEmpty,
+        );
+        if (!mounted) return;
+        SnackbarHelper.showSuccess(context, 'Đã cập nhật đánh giá thành công!');
+      } else {
+        final newReview = Review(
+          id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
+          productId: resolvedProductId,
+          productName: resolvedProductName,
+          userName: currentUserName,
+          userEmail: AuthService.userEmail,
+          rating: _rating,
+          comment: comment,
+          createdAt: DateTime.now(),
+          hasImage: imagePath != null && imagePath.isNotEmpty,
+          imageUrl: imagePath,
+          orderId: widget.orderId,
+        );
 
-    // Lưu trực tiếp vào MongoDB traicay_db và đồng bộ DataService
-    await DataService.addReview(newReview);
+        await DataService.addReview(newReview);
+        if (!mounted) return;
+        SnackbarHelper.showSuccess(context, 'Cảm ơn $currentUserName đã gửi đánh giá!');
+      }
 
-    if (!mounted) return;
-
-    setState(() => _isSubmitting = false);
-    SnackbarHelper.showSuccess(context, 'Cảm ơn $currentUserName đã gửi đánh giá!');
-    Navigator.pop(context, true);
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Đã xảy ra lỗi: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final displayName = AuthService.userName ?? 'Huế Trân Võ';
+    final displayName = AuthService.userName ?? 'Khách hàng';
+    final isEditing = widget.existingReview != null;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Đánh giá sản phẩm', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text(
+          isEditing ? 'Chỉnh sửa đánh giá' : 'Đánh giá sản phẩm',
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
@@ -181,15 +273,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       ),
                     );
                   }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      final sel = DataService.products.firstWhere((p) => p.id == val);
-                      setState(() {
-                        _selectedProductId = sel.id;
-                        _selectedProductName = sel.name;
-                      });
-                    }
-                  },
+                  onChanged: isEditing
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            final sel = DataService.products.firstWhere((p) => p.id == val);
+                            setState(() {
+                              _selectedProductId = sel.id;
+                              _selectedProductName = sel.name;
+                            });
+                          }
+                        },
                 ),
               ),
             ),
@@ -240,47 +334,123 @@ class _ReviewScreenState extends State<ReviewScreen> {
             const SizedBox(height: 24),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Hình ảnh thực tế', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              child: Text(
+                'Hình ảnh thực tế đính kèm',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
             ),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _hasImage = !_hasImage;
-                  });
-                },
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _hasImage ? Colors.green : Colors.grey.shade300,
-                      width: _hasImage ? 2 : 1,
-                    ),
-                  ),
-                  child: _hasImage
-                      ? const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+              child: _imageFile != null
+                  ? Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            _imageFile!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _imageFile = null;
+                                _existingImageUrl = null;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : (_existingImageUrl != null && _existingImageUrl!.isNotEmpty)
+                      ? Stack(
                           children: [
-                            Icon(Icons.check_circle, size: 36, color: Colors.green),
-                            SizedBox(height: 4),
-                            Text('Đã đính kèm ảnh', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _existingImageUrl!.startsWith('http')
+                                  ? Image.network(
+                                      _existingImageUrl!,
+                                      width: 120,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_existingImageUrl!),
+                                      width: 120,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        width: 120,
+                                        height: 120,
+                                        color: Colors.grey.shade200,
+                                        child: const Icon(Icons.image, color: Colors.grey),
+                                      ),
+                                    ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _existingImageUrl = null;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
                           ],
                         )
-                      : const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.camera_alt, color: Colors.grey),
-                            SizedBox(height: 8),
-                            Text('Thêm ảnh', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          ],
+                      : InkWell(
+                          onTap: _showImagePickerOptions,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+                            ),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_a_photo_outlined, size: 32, color: Colors.green),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Tải ảnh lên',
+                                  style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Camera / Thư viện',
+                                  style: TextStyle(color: Colors.grey, fontSize: 10),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                ),
-              ),
             ),
             const SizedBox(height: 36),
             SizedBox(
@@ -299,9 +469,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text(
-                        'Gửi đánh giá',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    : Text(
+                        isEditing ? 'Lưu chỉnh sửa' : 'Gửi đánh giá',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
               ),
             ),

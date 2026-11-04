@@ -224,9 +224,13 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
   }
 
   Widget _buildCustomerCard(Customer customer) {
+    final realSpent = DataService.getCustomerTotalSpent(customer.email);
+    final realOrders = DataService.getCustomerTotalOrders(customer.email);
+    final memberTier = DataService.getCustomerMemberTier(customer.email);
+
     Color tierColor;
     Color tierBgColor;
-    switch (customer.memberTier) {
+    switch (memberTier) {
       case 'Bạch Kim':
         tierColor = Colors.blue.shade700;
         tierBgColor = Colors.blue.shade50;
@@ -316,7 +320,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                                     border: Border.all(color: tierColor.withValues(alpha: 0.3)),
                                   ),
                                   child: Text(
-                                    customer.memberTier,
+                                    memberTier,
                                     style: TextStyle(color: tierColor, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
@@ -353,7 +357,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Đã chi tiêu: ${FormatHelper.formatPrice(customer.totalSpent)} (${customer.totalOrders} đơn hàng)',
+                        'Đã chi tiêu: ${FormatHelper.formatPrice(realSpent)} ($realOrders đơn hàng)',
                         style: TextStyle(
                           color: customer.isActive ? Colors.green.shade700 : Colors.grey.shade600,
                           fontWeight: FontWeight.bold,

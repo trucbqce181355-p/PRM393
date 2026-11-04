@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'otp_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/data_service.dart';
-import '../user/user_home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
