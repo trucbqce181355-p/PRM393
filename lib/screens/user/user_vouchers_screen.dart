@@ -3,6 +3,8 @@ import '../../services/data_service.dart';
 import 'package:flutter/services.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../utils/format_helper.dart';
+import '../../models/cart_item.dart';
+import 'checkout_screen.dart';
 
 class UserVouchersScreen extends StatelessWidget {
   const UserVouchersScreen({super.key});
@@ -74,13 +76,42 @@ class UserVouchersScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.copy, color: Colors.grey),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: voucher.code));
-                          SnackbarHelper.showSuccess(context, 'Đã copy mã: ${voucher.code}');
-                        },
-                      )
+                      Column(
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              if (Cart.items.isEmpty) {
+                                Clipboard.setData(ClipboardData(text: voucher.code));
+                                SnackbarHelper.showSuccess(context, 'Đã copy mã ${voucher.code}. Hãy thêm sản phẩm vào giỏ hàng!');
+                                Navigator.pop(context);
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CheckoutScreen(initialVoucherCode: voucher.code),
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text('Dùng ngay', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.grey, size: 20),
+                            tooltip: 'Copy mã',
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: voucher.code));
+                              SnackbarHelper.showSuccess(context, 'Đã copy mã: ${voucher.code}');
+                            },
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
