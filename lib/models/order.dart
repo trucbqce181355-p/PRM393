@@ -11,6 +11,18 @@ class Order {
   OrderStatus status;
   final DateTime createdAt;
 
+  // Chi tiết hóa đơn và giao hàng
+  final List<Map<String, dynamic>> items;
+  final String paymentMethod;
+  final String shippingMethod;
+  final double shippingFee;
+  final double discountAmount;
+  final String? voucherCode;
+  String? assignedShipperName;
+  String? assignedShipperPhone;
+  final String? deliveryNotes;
+  String? cancellationReason;
+
   Order({
     required this.id,
     required this.customerName,
@@ -21,6 +33,16 @@ class Order {
     this.itemsSummary = '',
     this.status = OrderStatus.pending,
     required this.createdAt,
+    this.items = const [],
+    this.paymentMethod = 'COD',
+    this.shippingMethod = 'STANDARD',
+    this.shippingFee = 0.0,
+    this.discountAmount = 0.0,
+    this.voucherCode,
+    this.assignedShipperName,
+    this.assignedShipperPhone,
+    this.deliveryNotes,
+    this.cancellationReason,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -34,6 +56,13 @@ class Order {
       return OrderStatus.pending;
     }
 
+    List<Map<String, dynamic>> parseItems(dynamic raw) {
+      if (raw is List) {
+        return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    }
+
     return Order(
       id: json['id']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? json['customer_name']?.toString() ?? 'Khách hàng',
@@ -41,11 +70,21 @@ class Order {
       customerPhone: json['customerPhone']?.toString() ?? json['customer_phone']?.toString(),
       address: json['address']?.toString() ?? '',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? (json['total'] as num?)?.toDouble() ?? 0.0,
-      itemsSummary: json['itemsSummary']?.toString() ?? json['items']?.toString() ?? '',
+      itemsSummary: json['itemsSummary']?.toString() ?? json['items_summary']?.toString() ?? json['items']?.toString() ?? '',
       status: parseStatus(json['status']?.toString()),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      items: parseItems(json['orderItems'] ?? json['cart_items']),
+      paymentMethod: json['paymentMethod']?.toString() ?? json['payment_method']?.toString() ?? 'COD',
+      shippingMethod: json['shippingMethod']?.toString() ?? json['shipping_method']?.toString() ?? 'STANDARD',
+      shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0.0,
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
+      voucherCode: json['voucherCode']?.toString(),
+      assignedShipperName: json['assignedShipperName']?.toString() ?? json['shipper_name']?.toString(),
+      assignedShipperPhone: json['assignedShipperPhone']?.toString() ?? json['shipper_phone']?.toString(),
+      deliveryNotes: json['deliveryNotes']?.toString() ?? json['notes']?.toString(),
+      cancellationReason: json['cancellationReason']?.toString() ?? json['cancel_reason']?.toString(),
     );
   }
 
@@ -79,6 +118,60 @@ class Order {
       'itemsSummary': itemsSummary,
       'status': statusString,
       'createdAt': createdAt.toIso8601String(),
+      'orderItems': items,
+      'paymentMethod': paymentMethod,
+      'shippingMethod': shippingMethod,
+      'shippingFee': shippingFee,
+      'discountAmount': discountAmount,
+      'voucherCode': voucherCode,
+      'assignedShipperName': assignedShipperName,
+      'assignedShipperPhone': assignedShipperPhone,
+      'deliveryNotes': deliveryNotes,
+      'cancellationReason': cancellationReason,
     };
+  }
+
+  Order copyWith({
+    String? id,
+    String? customerName,
+    String? customerEmail,
+    String? customerPhone,
+    String? address,
+    double? totalAmount,
+    String? itemsSummary,
+    OrderStatus? status,
+    DateTime? createdAt,
+    List<Map<String, dynamic>>? items,
+    String? paymentMethod,
+    String? shippingMethod,
+    double? shippingFee,
+    double? discountAmount,
+    String? voucherCode,
+    String? assignedShipperName,
+    String? assignedShipperPhone,
+    String? deliveryNotes,
+    String? cancellationReason,
+  }) {
+    return Order(
+      id: id ?? this.id,
+      customerName: customerName ?? this.customerName,
+      customerEmail: customerEmail ?? this.customerEmail,
+      customerPhone: customerPhone ?? this.customerPhone,
+      address: address ?? this.address,
+      totalAmount: totalAmount ?? this.totalAmount,
+      itemsSummary: itemsSummary ?? this.itemsSummary,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      items: items ?? this.items,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      shippingMethod: shippingMethod ?? this.shippingMethod,
+      shippingFee: shippingFee ?? this.shippingFee,
+      discountAmount: discountAmount ?? this.discountAmount,
+      voucherCode: voucherCode ?? this.voucherCode,
+      assignedShipperName: assignedShipperName ?? this.assignedShipperName,
+      assignedShipperPhone: assignedShipperPhone ?? this.assignedShipperPhone,
+      deliveryNotes: deliveryNotes ?? this.deliveryNotes,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+    );
   }
 }

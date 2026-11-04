@@ -27,9 +27,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _appliedVoucherCode;
   double _discountAmount = 0.0;
   final TextEditingController _voucherController = TextEditingController();
-  // =======================================================
-  // CH?C NANG: TÍNH PHÍ V?N CHUY?N & T?NG HÓA ÐON
-  // =======================================================
 
   double get _shippingFee {
     if (_shippingMethod == 'EXPRESS') {
@@ -980,4 +977,3 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 }
-
