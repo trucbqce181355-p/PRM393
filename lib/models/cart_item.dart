@@ -40,6 +40,8 @@ class Cart {
     }
   }
 
+  /// [Quản lý giỏ hàng - Cập nhật số lượng sản phẩm trong giỏ]
+  /// Cập nhật số lượng mới cho sản phẩm. Tự động xóa khỏi giỏ nếu newQuantity <= 0.
   static void updateQuantity(String productId, int newQuantity) {
     final index = _items.indexWhere((item) => item.product.id == productId);
     if (index >= 0) {
@@ -51,6 +53,8 @@ class Cart {
     }
   }
 
+  /// [Quản lý giỏ hàng - Cập nhật số lượng sản phẩm trong giỏ]
+  /// Thay đổi số lượng tăng/giảm theo delta (+/- 1). Tự động xóa khỏi giỏ nếu <= 0.
   static void changeQuantity(String productId, int delta) {
     final index = _items.indexWhere((item) => item.product.id == productId);
     if (index >= 0) {

@@ -14,6 +14,8 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  /// [Quản lý giỏ hàng - Cập nhật số lượng sản phẩm trong giỏ]
+  /// Cập nhật số lượng sản phẩm trên UI và làm mới tổng hóa đơn giỏ hàng.
   void _updateQuantity(CartItem item, int change) {
     setState(() {
       item.quantity += change;
