@@ -1915,6 +1915,7 @@ class DataService {
     }
   }
 
+  // [67_Quản lý đánh giá - Ẩn đánh giá không phù hợp]
   static Future<void> toggleHideReview(String reviewId, bool isHidden) async {
     final index = reviews.indexWhere((r) => r.id == reviewId);
     if (index == -1) return;
