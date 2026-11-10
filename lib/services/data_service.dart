@@ -1874,6 +1874,7 @@ class DataService {
     await _updateProductRating(updated.productId, updated.productName);
   }
 
+  // [63_Quản lý đánh giá - Xóa đánh giá sản phẩm]
   static Future<void> deleteReview(String reviewId) async {
     final index = reviews.indexWhere((r) => r.id == reviewId);
     if (index == -1) return;
