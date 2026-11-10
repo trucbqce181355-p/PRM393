@@ -1,6 +1,9 @@
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 import 'dart:math';
+import 'registration_otp_service.dart';
+import 'registration_otp_store.dart';
+import 'otp_email_sender.dart';
 import '../models/customer.dart';
 import 'data_service.dart';
 import 'mongodb_service.dart';
@@ -24,6 +27,75 @@ class OtpResult {
 }
 
 class AuthService {
+
+  static RegistrationOtpService registrationOtpService = RegistrationOtpService(
+    store: MongoRegistrationOtpStore(),
+    cache: HiveOtpChallengeCache(),
+    sendEmail: sendRegistrationOtpEmail,
+  );
+  static EmailOtpChallenge? _registrationChallenge;
+  static bool _registrationVerified = false;
+  static EmailOtpChallenge? get registrationChallenge => _registrationChallenge;
+
+  static Future<void> restoreRegistrationOtp() async {
+    _registrationChallenge = await registrationOtpService.restore();
+    if (_registrationChallenge != null) {
+      _pendingEmail = _registrationChallenge!.email;
+      _registrationVerified = false;
+    }
+  }
+
+  static Future<void> requestRegistrationOtp(String email) async {
+    final normalized = email.trim().toLowerCase();
+    if (DataService.customers.any(
+      (customer) => customer.email.trim().toLowerCase() == normalized,
+    )) {
+      throw const OtpRequestException('Email này đã được đăng ký.');
+    }
+    final challenge = await registrationOtpService.request(normalized);
+    _registrationChallenge = challenge;
+    _pendingEmail = challenge.email;
+    _registrationVerified = false;
+  }
+
+  static Future<void> resendRegistrationOtp() async {
+    final challenge = _registrationChallenge;
+    if (challenge == null) {
+      throw const OtpRequestException('Vui lòng nhập email để nhận mã xác minh.');
+    }
+    await requestRegistrationOtp(challenge.email);
+  }
+
+  static Future<OtpResult> verifyRegistrationOtp(String code) async {
+    final challenge = _registrationChallenge;
+    if (challenge == null) {
+      return OtpResult(isValid: false, isExpired: true,
+        message: 'Vui lòng yêu cầu mã xác minh mới.');
+    }
+    try {
+      final result = await registrationOtpService.verify(challenge, code);
+      final valid = result.status == OtpCheckStatus.valid;
+      if (valid) {
+        _pendingEmail = challenge.email;
+        _registrationVerified = true;
+      }
+      final message = switch (result.status) {
+        OtpCheckStatus.valid => 'Xác minh email thành công!',
+        OtpCheckStatus.invalid => 'Mã không chính xác. Còn ' +
+            result.remainingAttempts.toString() + ' lần thử.',
+        OtpCheckStatus.expired => 'Mã đã hết hạn hoặc đã được thay thế. Vui lòng gửi lại.',
+        OtpCheckStatus.locked => 'Đã hết số lần thử. Vui lòng yêu cầu mã mới.',
+        OtpCheckStatus.used => 'Mã đã được sử dụng. Vui lòng yêu cầu mã mới.',
+      };
+      return OtpResult(isValid: valid, message: message,
+        isExpired: result.status == OtpCheckStatus.expired,
+        isLocked: result.status == OtpCheckStatus.locked,
+        remainingAttempts: result.remainingAttempts);
+    } on OtpRequestException catch (error) {
+      return OtpResult(isValid: false, message: error.message);
+    }
+  }
+
   static bool _isLoggedIn = false;
   static String? _token;
   static String? _userName;
@@ -288,6 +360,9 @@ class AuthService {
 
   // --- 3. ĐĂNG KÝ KHÁCH HÀNG THƯỜNG ---
   static Future<void> registerCustomer(String name, String phone, String password) async {
+    if (_registrationChallenge != null && !_registrationVerified) {
+      throw Exception('Vui lòng xác minh email trước khi tạo tài khoản.');
+    }
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (_pendingEmail != null) {

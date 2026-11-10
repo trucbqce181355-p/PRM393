@@ -1,137 +1,112 @@
-import '../../utils/snackbar_helper.dart';
 import 'package:flutter/material.dart';
-import 'otp_screen.dart';
+
 import '../../services/auth_service.dart';
-import '../../services/data_service.dart';
+import '../../services/registration_otp_service.dart';
+import 'otp_screen.dart';
+import 'widgets/account_form_layout.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
-
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  String? _error;
 
-  void _onRegisterPressed() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      SnackbarHelper.showError(context, 'Vui lòng nhập Email hợp lệ');
-      return;
-    }
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
 
-    // Check duplicate email
-    final isDuplicate = DataService.customers.any((c) => c.email == email);
-    if (isDuplicate) {
-      SnackbarHelper.showError(context, 'Email này đã được đăng ký!');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    String error = await AuthService.loginWithEmail(email);
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    if (error.isNotEmpty) {
-      // Nếu có lỗi, hiện lên màn hình để dễ xem
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Lỗi gửi Email'),
-          content: Text('Không thể gửi mail vì bị Google chặn xác thực (Sai mật khẩu hoặc cần App Password).\n\nChi tiết lỗi:\n$error\n\nMã OTP test (đã in ra console) vẫn hoạt động.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OtpScreen()),
-                );
-              },
-              child: const Text('Tiếp tục nhập OTP Test'),
-            ),
-          ],
-        ),
+  Future<void> _onRegisterPressed() async {
+    if (_isLoading || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      await AuthService.restoreRegistrationOtp();
+      final email = _emailController.text.trim().toLowerCase();
+      final current = AuthService.registrationChallenge;
+      if (current == null ||
+          current.email != email ||
+          !current.expiresAt.isAfter(DateTime.now())) {
+        await AuthService.requestRegistrationOtp(email);
+      }
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const OtpScreen()),
       );
-      return;
+    } on OtpRequestException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const OtpScreen()),
-    );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tạo tài khoản mới',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Nhập email để nhận mã OTP đăng ký',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 48),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onRegisterPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Nhận mã OTP',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
-                        ),
-                ),
-              ),
-            ],
-          ),
+  Widget build(BuildContext context) => AccountFormLayout(
+    title: 'TẠO TÀI KHOẢN',
+    subtitle: 'Nhập email để nhận mã xác minh tài khoản.',
+    children: [
+      Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _emailController,
+          enabled: !_isLoading,
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.email],
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _onRegisterPressed(),
+          decoration: AccountFormLayout.input('Email'),
+          validator: (value) {
+            final email = value?.trim() ?? '';
+            return email.length <= 254 &&
+                    RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
+                ? null
+                : 'Vui lòng nhập địa chỉ email hợp lệ.';
+          },
         ),
       ),
-    );
-  }
+      const SizedBox(height: 22),
+      const Text(
+        'Mã xác minh có hiệu lực 5 phút. Bạn có thể yêu cầu gửi lại sau 60 giây.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Color(0xFF999999), height: 1.6),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 16),
+        Text(_error!, style: const TextStyle(color: Colors.red)),
+      ],
+      const SizedBox(height: 24),
+      ElevatedButton(
+        onPressed: _isLoading ? null : _onRegisterPressed,
+        style: AccountFormLayout.buttonStyle,
+        child: _isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Text('GỬI MÃ XÁC MINH'),
+      ),
+      const SizedBox(height: 22),
+      TextButton(
+        onPressed: _isLoading ? null : () => Navigator.pop(context),
+        child: const Text(
+          'Đã có tài khoản? Đăng nhập',
+          style: TextStyle(color: AccountFormLayout.linkColor),
+        ),
+      ),
+    ],
+  );
 }
