@@ -139,6 +139,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
   }
 
+  // [68_Quản lý đánh giá - Xác minh đơn hàng đã mua trước khi đánh giá]
   Future<void> _submitReview() async {
     if (_rating == 0) {
       SnackbarHelper.showError(context, 'Vui lòng chọn số sao đánh giá');
