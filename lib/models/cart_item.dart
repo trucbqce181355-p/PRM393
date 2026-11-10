@@ -26,6 +26,7 @@ class Cart {
 
   static int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
 
+  // [82_Quản lý giỏ hàng - Thêm sản phẩm vào giỏ hàng]
   static void addItem(Product product, int quantity) {
     if (quantity <= 0) return;
     final existingIndex = _items.indexWhere((item) => item.product.id == product.id);
