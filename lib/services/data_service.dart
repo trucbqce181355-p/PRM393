@@ -1834,7 +1834,7 @@ class DataService {
     await _updateProductRating(review.productId, review.productName);
   }
 
-  // [62_Quản lý đánh giá - Chỉnh sửa đánh giá sản phẩm]
+  /// [62_Quản lý đánh giá - Chỉnh sửa đánh giá sản phẩm] Cập nhật số sao và nội dung nhận xét
   static Future<void> updateReview(
     String reviewId, {
     int? rating,
