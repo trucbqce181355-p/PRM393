@@ -156,6 +156,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       Builder(
                         builder: (context) {
+                          /// [60_Quản lý đánh giá - Xem đánh giá sản phẩm]
                           final prodReviews = DataService.getReviewsForProduct(widget.product.id, widget.product.name);
                           // [65_Quản lý đánh giá - Xem điểm đánh giá trung bình của sản phẩm]
                           final double avgRating = prodReviews.isNotEmpty

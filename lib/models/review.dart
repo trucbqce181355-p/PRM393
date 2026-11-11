@@ -1,4 +1,4 @@
-// [60_Quản lý đánh giá - Xem đánh giá sản phẩm]
+/// [60_Quản lý đánh giá - Xem đánh giá sản phẩm] Model đánh giá sản phẩm
 class Review {
   final String id;
   final String productId;
