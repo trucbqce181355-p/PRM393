@@ -751,6 +751,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                         );
                         if (confirm == true) {
+                          /// [63_Quản lý đánh giá - Xóa đánh giá sản phẩm]
                           await DataService.deleteReview(r.id);
                           await _refreshReviews();
                           if (mounted) {
