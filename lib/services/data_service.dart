@@ -1915,7 +1915,7 @@ class DataService {
     }
   }
 
-  // [67_Quản lý đánh giá - Ẩn đánh giá không phù hợp]
+  /// [64_Quản lý đánh giá - Ẩn đánh giá không phù hợp] Ẩn đánh giá vi phạm tiêu chuẩn cộng đồng
   static Future<void> toggleHideReview(String reviewId, bool isHidden) async {
     final index = reviews.indexWhere((r) => r.id == reviewId);
     if (index == -1) return;

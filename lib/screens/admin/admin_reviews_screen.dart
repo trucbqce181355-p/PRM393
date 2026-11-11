@@ -573,6 +573,7 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     final newHidden = !r.isHidden;
+                    /// [64_Quản lý đánh giá - Ẩn đánh giá không phù hợp]
                     await DataService.toggleHideReview(r.id, newHidden);
                     setState(() {});
                     if (mounted) {
